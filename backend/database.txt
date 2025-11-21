@@ -1,0 +1,37 @@
+use pre_consultation_db;
+
+create TABLE users(
+id int auto_increment primary key,
+full_name varchar(100),
+email varchar(100) unique,
+created_account timestamp default current_timestamp
+);
+create table appointments(
+id int auto_increment primary key,
+user_id int,
+appointment_date datetime,
+status varchar(50) default 'scheduled',
+foreign key (user_id) references users(id)
+);
+create table sessions(
+id int auto_increment primary key,
+appointment_id int,
+started_session timestamp default current_timestamp,
+ended_session timestamp null,
+foreign key (appointment_id) references appointments(id)
+);
+create table messages(
+id int auto_increment primary key,
+session_id int,
+sender varchar(50), -- 'user' or 'ai'
+content text,
+created_at timestamp default current_timestamp,
+foreign key (session_id) references sessions(id)
+);
+create table summaries(
+id int auto_increment primary key,
+session_id int,
+summary text,
+created_summary timestamp default current_timestamp,
+foreign key (session_id) references sessions(id)
+);
