@@ -1,6 +1,13 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime, Enum
 from sqlalchemy.sql import func
-from backend.database import Base
+from database import Base
+
+class Doctor(Base):
+    __tablename__ = 'doctors'
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(100))
+    email=Column(String(100), unique=True)
+    password=Column(String(100))
 
 class User(Base):
     __tablename__ = 'users'
@@ -11,8 +18,10 @@ class User(Base):
 class Appointment(Base):
     __tablename__ = 'appointments'
     id = Column(Integer, primary_key=True, index=True)
+    doctor_id = Column(Integer, ForeignKey('doctors.id'))
     user_id = Column(Integer, ForeignKey('users.id'))
     appointment_date = Column(DateTime)
+    access_code= Column(String(10), unique=True, index=True)
     status = Column(String(50), default="scheduled")
 
 class Session(Base):
@@ -25,8 +34,9 @@ class Message(Base):
     __tablename__ = 'messages'
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey('sessions.id'))
-    sender = Column(String(50))
+    sender = Column(String(50)) #user or ai
     content = Column(Text)
+    sent_message_at = Column(DateTime, server_default=func.now())
 
 class Summary(Base):
     __tablename__ = 'summaries'
