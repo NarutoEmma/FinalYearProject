@@ -6,5 +6,9 @@ pytest
 cryptography
 httpx
 python-dotenv
-python -m venv venv
-.\venv\Scripts\activate
+sqlalchemy
+pydantic[email]
+passlib
+jose
+bcrypt
+python-multipart

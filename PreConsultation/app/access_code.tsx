@@ -22,6 +22,8 @@ export default function AccessCodeModal({ visible, onAccessGranted }: AccessCode
         }
     };
 
+
+
     return (
         <Modal
             visible={visible}

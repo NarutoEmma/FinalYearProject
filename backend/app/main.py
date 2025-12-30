@@ -1,10 +1,15 @@
 from fastapi import FastAPI
-from database import engine
-import model
+from backend.app.database import Base,engine
+from backend.routers import auth, sessions, appointments,chat
 
-model.Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(title="Pre-Consultation AI")
+
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(appointments.router, prefix="/appointments", tags=["Appointments"])
+app.include_router(sessions.router, prefix="/sessions", tags=["Sessions"])
+app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 
 @app.get("/")
 def read_root():

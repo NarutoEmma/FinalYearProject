@@ -21,7 +21,7 @@ type Message = {
 };
 
 const API_URL= "https://focusflow-server-fktn.onrender.com/api/chat"
-const API_KEY= "my-very-secret-string";
+const API_KEY= "my-very-secret-string" ;
 
 //helper to compute days left for each module
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
