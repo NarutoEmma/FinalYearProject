@@ -79,9 +79,17 @@ class MessageResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class ExtractedInfo(BaseModel):
+    symptom: str | None
+    duration: str | None
+    severity: str | None
+    frequency: str | None
+
 #chat response
 class ChatResponse(BaseModel):
     reply: str
+    off_topic: bool
+    extracted: ExtractedInfo
 
 #summary
 class SummaryResponse(BaseModel):

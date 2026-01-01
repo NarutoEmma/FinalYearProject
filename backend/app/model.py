@@ -39,7 +39,7 @@ class Appointment(Base):
     access_code= Column(String(8), unique=True, nullable= False, index=True)
     code_used_at = Column(DateTime, nullable = True)
     status = Column(
-        Enum("scheduled", "active", "completed", "cancelled", name="appointment_status"),
+        Enum("scheduled", "in_progress", "completed", "cancelled", name="appointment_status"),
         default="scheduled", nullable=False)
 
     created_at = Column(DateTime, server_default=func.now())

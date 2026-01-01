@@ -1,4 +1,4 @@
-#validate access code
+#validate access code, create session and prevent multiple sessions
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -17,13 +17,23 @@ def start_session(payload:schemas.SessionCreate,
     if not appointment:
         raise HTTPException(status_code=404, detail="Invalid access code")
 
+    #prevent multiple sessions for same appointment
+    existing_session = db.query(model.Session).filter(
+        model.Session.appointment_id == appointment.id).first()
+    if existing_session:
+        raise HTTPException(status_code=400, detail="session already in progress")
+
     #create session
     session = model.Session(appointment_id=appointment.id,
-                            started_session_at=datetime.now())
+                            started_at=datetime.now())
+
+    appointment.status="in_progress"
 
     db.add(session)
     db.commit()
     db.refresh(session)
-    return {"session_id": session.id,
+    return {"id": session.id,
             "appointment_id": appointment.id,
-            "message": "session started successfully"}
+            "message": "session started",
+            "started_at": session.started_at,
+            "ended_at": None}
