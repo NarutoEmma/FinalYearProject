@@ -1,7 +1,6 @@
-// Begin Focus: chat UI with bottom input bar
 import React, { useRef, useState, useEffect } from "react";
 import {
-    View, StyleSheet, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity, FlatList, Text, Alert, Modal,
+    View, StyleSheet, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity, FlatList, Text, Alert
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Speech from "expo-speech"
@@ -9,46 +8,23 @@ import { Ionicons } from "@expo/vector-icons";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../utils/theme";
-import { useRouter } from "expo-router";
+// Make sure this path is correct! If access_code.tsx is in 'components', use "../components/access_code"
 import AccessCodeModal from "./access_code";
 
+// ⚠️ IMPORTANT: Use your computer's local IP (e.g., 192.168.1.5) instead of 127.0.0.1 for physical devices/emulators
+const BASE_URL = "http://192.168.0.19:8000"; // Use 10.0.2.2 for Android Emulator, or your LAN IP for physical device
+
 type Role = "user" | "ai";
+type Message = { id: string; role: Role; text: string; };
 
-type Message = {
-    id: string;
-    role: Role;
-    text: string;
-};
-
-const API_URL= "https://focusflow-server-fktn.onrender.com/api/chat"
-const API_KEY= "my-very-secret-string" ;
-
-//helper to compute days left for each module
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const daysUntil = (due: Date | null) => {
-    if (!due) return null;
-    const today = startOfDay(new Date());
-    const end = startOfDay(due);
-    return Math.ceil((end.getTime() - today.getTime()) / MS_PER_DAY);
-};
-
-type ModuleSummary = {
-    id: string;
-    title: string;
-    dueDate?: Date | null;
-    daysLeft?: number | null
-    completed?: boolean;
-};
-
-const initialWelcomeMessage: Message={
+const initialWelcomeMessage: Message = {
     id: "m1",
     role: "ai",
-    text: "Hi! please describe your symptom?" };
-
-const userStorageKey = "begin_focus:messages_v1";
+    text: "Hello. I am your triage assistant. What is your main symptom today?"
+};
 
 export default function BeginFocus() {
+    const [sessionId, setSessionId] = useState<number | null>(null);
     const [accessGranted, setAccessGranted] = useState(false);
 
     const [text, setText] = useState("");
@@ -56,140 +32,64 @@ export default function BeginFocus() {
     const [sending, setSending] = useState(false);
     const [speaking, setSpeaking] = useState<boolean>(false);
 
-    //layout helpers
-    const headerHeight = useHeaderHeight();
-    const insets = useSafeAreaInsets();
     const listRef = useRef<FlatList<Message>>(null);
     const { colors } = useTheme();
-    const onSpeak = () => {Alert.alert("voice feature coming soon");};
+    const insets = useSafeAreaInsets();
 
-    //Keyboard offset
-    const keyboardOffset = Platform.select({ ios: headerHeight, android: headerHeight + 8 }) as number;
+    // Safety check for header height
+    const headerHeight = useHeaderHeight() || 0;
+    const keyboardOffset = Platform.select({ ios: headerHeight, android: 0 }) as number;
 
-    const [modules, setModules] = useState<ModuleSummary[]>([]);
-
-    //load messages from async storage
+    // Auto-scroll logic
     useEffect(() => {
-        (async ()=>{
-            try {
-                const raw = await AsyncStorage.getItem(userStorageKey);
-                if(raw){
-                    const saved = JSON.parse(raw) as Message[];
-                    if(Array.isArray(saved) && saved.length>0){
-                        setMessages(saved);
-                        return;
-                    }
-                }
-                setMessages([initialWelcomeMessage]);
-            } catch (e){
-                console.log("failed to load messages ",e);
-                setMessages([initialWelcomeMessage]);
-            } finally {
-                setText("")
-            }
-        })();
-    }, []);
-
-    //persist messages upon change
-    useEffect(() => {
-        const timeout = setTimeout(()=>{
-            AsyncStorage.setItem(userStorageKey, JSON.stringify(messages)).catch(()=>{});
-        }, 100);
-        return () => clearTimeout(timeout);
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }, [messages]);
 
-    //auto-scroll to the bottom of chat
-    useEffect(() => {
-        const timeout = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }),50);
-        return () => clearTimeout(timeout);
-    },[messages]);
+    // 1. FIX: Define the handler
+    const handleAccessGranted = (id: number) => {
+        console.log("Access Granted with Session ID:", id);
+        setSessionId(id);
+        setAccessGranted(true);
+    };
 
-    //clear saved chat session
-    async function clearSession(){
-        try{
-            await AsyncStorage.removeItem(userStorageKey);
-        }catch(e){
-            console.log("failed to clear session",e);
-        }
-        setMessages([initialWelcomeMessage]);
-        setText("");}
-
-    //Send message and fetch AI reply
     const onSend = async () => {
         const trimmed = text.trim();
-        if (!trimmed || sending) return;
+        if (!trimmed || sending || !sessionId) return;
 
         const userMsg: Message = { id: String(Date.now()), role: "user", text: trimmed };
-        const nextMessage=[...messages, userMsg];
-
-        setMessages(nextMessage);
+        setMessages((prev) => [...prev, userMsg]);
         setText("");
         setSending(true);
 
-        try{
-            await AsyncStorage.setItem(userStorageKey, JSON.stringify(nextMessage)).catch(()=>{});
-            //include modules context in request payload
-            const modulesPayload = modules.map((m)=>({
-                id:m.id,
-                title: m.title,
-                daysLeft: m.daysLeft,
-                dueDate: m.dueDate ? m.dueDate.toISOString() : null,
-                completed: !!m.completed,
-            }))
-            const response = await fetch(API_URL!,{
+        try {
+            const response = await fetch(`${BASE_URL}/chat/${sessionId}`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": API_KEY,
-                },
-                body: JSON.stringify({messages:nextMessage,
-                    modules:modulesPayload}),
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content: trimmed }), // Ensure backend expects 'content'
             });
 
-            if(!response.ok){
-                const errorText = await response.text();
-                throw new Error(`API error ${response.status}: ${errorText}`);
-            }
+            if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
             const data = await response.json();
-            const aiText: string = data?.reply?? " i couldnt generate a reply,";
-            const aiMessage: Message = {id: String(Date.now()+1), role: "ai", text: aiText};
-            const finalMessage =[...nextMessage, aiMessage];
-            setMessages(finalMessage);
-            await AsyncStorage.setItem(userStorageKey, JSON.stringify(finalMessage)).catch(()=>{});
-        } catch(err:any){
-            const aiMsg: Message= {
-                id: String(Date.now()+1),
-                role: "ai",
-                text: err?.message || "network error please try again",
-            };
-            const errMessage = [...nextMessage, aiMsg];
-            setMessages(errMessage);
-            await  AsyncStorage.setItem(userStorageKey, JSON.stringify(errMessage)).catch(()=>{});
-        } finally{
+            const aiText = data.reply || "I'm having trouble thinking.";
+
+            const aiMsg: Message = { id: String(Date.now() + 1), role: "ai", text: aiText };
+            setMessages(prev => [...prev, aiMsg]);
+        } catch (err: any) {
+            const errorMsg: Message = { id: String(Date.now() + 1), role: "ai", text: "Connection Error. Check your IP/Server." };
+            setMessages(prev => [...prev, errorMsg]);
+            console.error(err);
+        } finally {
             setSending(false);
         }
     };
-    //read ai responses with tts
+
     const readText = (text: string) => {
-        if(!text) return;
-        //toggle stop if already speaking
-        if(speaking){
-            Speech.stop();
-            setSpeaking(false);
-            return;
-        }
+        if (speaking) { Speech.stop(); setSpeaking(false); return; }
         setSpeaking(true);
-        Speech.speak(text,{
-            language: "en-US",
-            pitch: 1.0,
-            rate: Platform.OS === "ios"? 0.95:0.5,
-            onDone:()=> setSpeaking(false),
-            onError:()=> setSpeaking(false),
-            onStopped:() => setSpeaking(false),
-        });
+        Speech.speak(text, { onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false) });
     };
 
-    //render a chat bubble row
     const renderItem = ({ item }: { item: Message }) => {
         const isUser = item.role === "user";
         return (
@@ -197,167 +97,68 @@ export default function BeginFocus() {
                 <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
                     <Text style={[styles.messageText, isUser ? styles.userText : styles.aiText]}>{item.text}</Text>
                 </View>
-
-                {/* Small microphone button to the right of AI messages for text-to-speech */}
                 {!isUser && (
-                    <TouchableOpacity
-                        accessibilityLabel={speaking? "Stop Speech" : "Text to speech"}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={[styles.ttsButton, speaking && {opacity: 0.7}]}
-                        onPress={() => readText(item.text)}
-                    >
-                        <Ionicons
-                            name="mic-outline"
-                            size={18}
-                            color={typeof colors.text === 'string' ? (colors.text as string) : undefined}
-                        />
+                    <TouchableOpacity style={styles.ttsButton} onPress={() => readText(item.text)}>
+                        <Ionicons name={speaking ? "stop-circle-outline" : "mic-outline"} size={18} color={colors.text as string} />
                     </TouchableOpacity>
                 )}
             </View>
         );
     };
 
-    //extract unique key for messages
-    const keyExtractor = (item: Message) => item.id;
-
     return (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <KeyboardAvoidingView
-                style={[styles.container, { backgroundColor: colors.background }]}
-                behavior={Platform.select({ ios: "padding", android: "height" })}
+                style={{ flex: 1 }}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
                 keyboardVerticalOffset={keyboardOffset}
             >
                 <FlatList
                     ref={listRef}
                     data={messages}
                     renderItem={renderItem}
-                    keyExtractor={keyExtractor}
-                    contentContainerStyle={{ 
-                        paddingTop: Math.max(insets.top, 20), 
-                        paddingHorizontal: 12, 
-                        paddingBottom: 12 
-                    }}
-                    style={styles.list}
-                    onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-                    onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 12, paddingBottom: 20 }}
                 />
 
-                <View style={[styles.bottomBar, { paddingBottom: Math.max(16, insets.bottom), backgroundColor: colors.card }]}>
-                    <View style={styles.rightIcons}>
-                        <TouchableOpacity accessibilityLabel="Clear session" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={clearSession} disabled={sending}>
-                            <Ionicons name="trash-outline" size={20} color={typeof colors.text === "string" ? (colors.text as string) : undefined} />
-                        </TouchableOpacity>
-                        <View style={{ width: 12 }} />
-
-                    </View>
-                    <View style={[styles.inputPill, { borderColor: colors.border, backgroundColor: colors.card }] }>
+                <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: Math.max(10, insets.bottom) }]}>
+                    <View style={[styles.inputPill, { borderColor: colors.border, backgroundColor: 'white' }]}>
                         <TextInput
-                            style={[styles.textInput, { color: colors.text }]}
-                            placeholder="Ask anything"
-                            placeholderTextColor={typeof colors.subtleText === 'string' ? colors.subtleText as string : undefined}
+                            style={[styles.textInput, { color: 'black' }]}
+                            placeholder="Type symptoms..."
+                            placeholderTextColor="gray"
                             value={text}
                             onChangeText={setText}
-                            returnKeyType="send"
                             onSubmitEditing={onSend}
                         />
-
-                        <View style={styles.rightIcons}>
-                            <TouchableOpacity accessibilityLabel="Voice input" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={onSpeak}>
-                                <Ionicons name="mic-outline" size={20} color={typeof colors.text === 'string' ? colors.text as string : undefined} />
-                            </TouchableOpacity>
-                            <View style={{ width: 12 }} />
-                            <TouchableOpacity accessibilityLabel="Send" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={onSend} disabled={sending} >
-                                <Ionicons name="send" size={20} color={typeof colors.text === "string" ? (colors.text as string) : undefined} />
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity onPress={onSend} disabled={sending}>
+                            <Ionicons name="send" size={20} color="dodgerblue" />
+                        </TouchableOpacity>
                     </View>
                 </View>
             </KeyboardAvoidingView>
 
+            {/* 2. FIX: Pass the handler correctly */}
             <AccessCodeModal
                 visible={!accessGranted}
-                onAccessGranted={() => setAccessGranted(true)}
+                onAccessGranted={handleAccessGranted}
             />
         </View>
     );
 }
 
-// Styles
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "white",
-        borderWidth: 2,
-        borderRadius: 10,
-    },
-    list: {
-        flex: 1,
-    },
-    row: {
-        width: "100%",
-        marginBottom: 8,
-        flexDirection: "row",
-    },
-    rowLeft: {
-        justifyContent: "flex-start",
-    },
-    rowRight: {
-        justifyContent: "flex-end",
-    },
-    bubble: {
-        maxWidth: "78%",
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 16,
-    },
-    aiBubble: {
-        backgroundColor: "lightgrey",
-        borderTopLeftRadius: 4,
-    },
-    userBubble: {
-        backgroundColor: "dodgerblue",
-        borderTopRightRadius: 4,
-    },
-    messageText: {
-        fontSize: 15,
-        lineHeight: 20,
-    },
-    aiText: {
-        color: "black",
-    },
-    userText: {
-        color: "white",
-    },
-    bottomBar: {
-        paddingHorizontal: 16,
-        paddingTop: 8,
-        paddingBottom: Platform.select({ ios: 16, android: 16 }) as number,
-        backgroundColor: "white",
-    },
-    inputPill: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: "lightgray",
-        backgroundColor: "white",
-        borderRadius: 22,
-        paddingHorizontal: 14,
-    },
-    textInput: {
-        flex: 1,
-        height: 44,
-        color: "black",
-        paddingVertical: 0,
-    },
-    rightIcons: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginLeft: 8,
-    },
-    ttsButton: {
-        marginLeft: 10,
-        alignSelf: "center",
-        padding: 4,
-        borderRadius: 12,
-    },
+    row: { width: "100%", marginBottom: 8, flexDirection: "row", alignItems: 'flex-end' },
+    rowLeft: { justifyContent: "flex-start" },
+    rowRight: { justifyContent: "flex-end" },
+    bubble: { maxWidth: "80%", padding: 12, borderRadius: 16 },
+    aiBubble: { backgroundColor: "#E5E5EA", borderBottomLeftRadius: 4 },
+    userBubble: { backgroundColor: "#007AFF", borderBottomRightRadius: 4 },
+    messageText: { fontSize: 16 },
+    aiText: { color: "black" },
+    userText: { color: "white" },
+    bottomBar: { padding: 10, borderTopWidth: 1, borderTopColor: "#eee" },
+    inputPill: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 25, paddingHorizontal: 15, paddingVertical: 5 },
+    textInput: { flex: 1, height: 40, marginRight: 10 },
+    ttsButton: { marginLeft: 5, padding: 5 },
 });

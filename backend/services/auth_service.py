@@ -3,8 +3,9 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import os
 
-SECRET_KEY = "SECRET_KEY"
+SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-dev-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60*24
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")

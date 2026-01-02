@@ -6,11 +6,12 @@ from datetime import datetime
 from backend.app.database import get_db
 from backend.app import schemas, model
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+router = APIRouter( tags=["sessions"])
 
 @router.post("/start", response_model=schemas.SessionResponse)
 def start_session(payload:schemas.SessionCreate,
                   db: Session = Depends(get_db)):
+
     appointment = db.query(model.Appointment).filter(
         model.Appointment.access_code == payload.access_code,
         model.Appointment.status=="scheduled").first()

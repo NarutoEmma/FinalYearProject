@@ -1,7 +1,7 @@
 
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Union, Any
 
 #doctor schema
 class DoctorBase(BaseModel):
@@ -79,11 +79,15 @@ class MessageResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class SymptomInfo(BaseModel):
+    symptom: Optional[str] = None
+    duration: Optional[str] = None
+    severity: Union[str, int, None] = None
+    frequency: Union[str, int, None] = None
+
 class ExtractedInfo(BaseModel):
-    symptom: str | None
-    duration: str | None
-    severity: str | None
-    frequency: str | None
+    current_symptom_index: int
+    symptoms: List[SymptomInfo]
 
 #chat response
 class ChatResponse(BaseModel):
@@ -95,7 +99,7 @@ class ChatResponse(BaseModel):
 class SummaryResponse(BaseModel):
     id: int
     session_id: int
-    summary_content: str
+    summary_content: dict
     created_at: datetime
 
     class Config:

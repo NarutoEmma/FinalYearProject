@@ -1,7 +1,15 @@
 from sqlalchemy import create_engine
+import os
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "mysql+pymysql://root:Chinny.com123@localhost:3306/preconsultationdb"
+
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_NAME = "preconsultationdb"
+
+#protected url to prevent bot getting access to my db
+DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:3306/{DB_NAME}"
 
 engine = create_engine(
     DATABASE_URL,
