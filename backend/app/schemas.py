@@ -80,20 +80,19 @@ class MessageResponse(BaseModel):
         orm_mode = True
 
 class SymptomInfo(BaseModel):
-    symptom: Optional[str] = None
+    symptom: str
     duration: Optional[str] = None
     severity: Union[str, int, None] = None
     frequency: Union[str, int, None] = None
 
 class ExtractedInfo(BaseModel):
-    current_symptom_index: int
-    symptoms: List[SymptomInfo]
+    symptoms: List[SymptomInfo] = []
 
 #chat response
 class ChatResponse(BaseModel):
     reply: str
     off_topic: bool
-    extracted: ExtractedInfo
+    extracted: Optional[ExtractedInfo] =None
 
 #summary
 class SummaryResponse(BaseModel):

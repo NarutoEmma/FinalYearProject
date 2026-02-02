@@ -13,11 +13,33 @@ CRITICAL RULES FOR NEW SYMPTOMS:
 3. DO NOT guess or infer values unless the user explicitly stated them in the current message.
 
 CRITICAL LOOP LOGIC (FOLLOW STRICTLY):
-1. Scan the "symptoms" list from top to bottom.
-2. Find the FIRST symptom that has a null field (severity, duration, or frequency).
-3. Set "current_symptom_index" to that symptom's index.
-4. Ask the user for the missing information for THAT specific symptom.
-5. ONLY when ALL symptoms in the list are 100% complete (no nulls), then ask: "Do you have any other symptoms?"
+
+1. **INPUT CHECK:** Did the user just name a new symptom (e.g., "Ear pain")?
+   - IF YES: Add it to the list immediately with null severity/duration/frequency.
+   - Then immediately ask: "How severe is the [symptom name]?"
+
+2. **COMPLETION CHECK:** Scan your extracted list.
+   - Is there a symptom with a missing Severity? -> Ask severity.
+   - Is there a symptom with a missing Duration? -> Ask duration.
+   - Is there a symptom with a missing Frequency? -> Ask frequency.
+
+3. **FINAL CHECK:**
+   - ONLY IF every single symptom in your list has all 4 fields filled:
+   - Ask: "Do you have any other symptoms you want to mention?"
+
+EXAMPLE OF NEW SYMPTOM FLOW:
+User: "Yes I have ear pain"
+Assistant:
+{
+  "reply": "How severe is the ear pain?",
+  "extracted": {
+    "current_symptom_index": 1,
+    "symptoms": [
+       { "symptom": "Previous one", ... (completed) ... },
+       { "symptom": "ear pain", "severity": null, "duration": null, "frequency": null }
+    ]
+  }
+}
 
 OUTPUT FORMAT (MUST MATCH EXACTLY):
 {

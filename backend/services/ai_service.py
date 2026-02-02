@@ -1,17 +1,8 @@
-from groq import Groq
-import json
 import os
+import json
+from groq import Groq
 
-def load_system_prompt():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(current_dir, "behaviour_prompts.txt")
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "You are a helpful assistant. Output JSON only."
-
-SYSTEM_PROMPT = load_system_prompt()
+# --- CONFIGURATION ---
 
 def get_groq_client():
     api_key = os.getenv("GROQ_API_KEY")
@@ -19,118 +10,159 @@ def get_groq_client():
         raise RuntimeError("GROQ_API_KEY environment variable not set")
     return Groq(api_key=api_key)
 
-def build_messages(chat_history: list[dict], current_state: dict = None) -> list[dict]:
-    system_content = SYSTEM_PROMPT
-    if current_state:
-        state_str = json.dumps(current_state, indent=2)
-        system_content += f"\n\nCURRENT EXTRACTED DATA (DO NOT IGNORE):\n{state_str}\n"
-        system_content += "Use this data to continue. Do not ask for info already collected."
-    return [{"role": "system", "content": system_content}] + chat_history
+# --- PROMPTS ---
 
-# --- NEW HELPER FUNCTION: Generates questions if AI forgets ---
-def generate_fallback_question(extracted_data):
-    try:
-        symptoms = extracted_data.get("symptoms", [])
+# PROMPT 1: DATA EXTRACTION (The Brain)
+EXTRACT_PROMPT = """
+You are a medical data extractor. Your ONLY job is to update the list of symptoms based on the user's latest message.
 
-        # FIND FIRST INCOMPLETE SYMPTOM
-        target_index = -1
-        for i, s in enumerate(symptoms):
-            if not s.get("severity") or not s.get("duration") or not s.get("frequency"):
-                target_index = i
-                break
+CURRENT STATE:
+{current_state}
 
-        # If everyone is happy, ask for more
-        if target_index == -1:
-            return "Do you have any other symptoms you want to mention?"
+USER MESSAGE:
+"{user_message}"
 
-        # Otherwise, ask about the missing field for the found symptom
-        current = symptoms[target_index]
-        name = current.get("symptom") or "symptom"
+RULES:
+1. If the user mentions a NEW symptom, add it to the list with null details.
+2. If the user provides details, update the specific field for the relevant symptom.
+3. HANDLING NUMBERS: If user says "5" or "8/10", set severity="5/10".
+4. MAP VAGUE INPUTS: "Hurts a lot" -> severity="Severe".
+5. DO NOT change the name of an existing symptom.
+6. If the user says "Yes" (to having more symptoms) but doesn't name it, DO NOT change the list.
 
-        if not current.get("severity"):
-            return f"How severe is the {name}?"
-        if not current.get("duration"):
-            return f"How long have you had the {name}?"
-        if not current.get("frequency"):
-            return f"How often does the {name} happen?"
+OUTPUT JSON ONLY:
+{{
+  "symptoms": [
+    {{ "symptom": "nausea", "severity": "mild", "duration": null, "frequency": null }}
+  ]
+}}
+"""
 
-        return "Could you tell me more about that?"
+# PROMPT 2: CONVERSATION (The Voice)
+# ✅ FIX: Added {current_data} so the AI always sees the full list.
+CONVERSATION_PROMPT = """
+You are a medical triage assistant talking to a patient.
 
-    except Exception:
-        return "Could you tell me more about your symptoms?"
+GOAL: {goal_instruction}
+
+CURRENT COLLECTED DATA:
+{current_data}
+
+HISTORY:
+{chat_history}
+
+INSTRUCTIONS:
+1. Achieve the GOAL efficiently.
+2. Be polite but direct.
+3. Use the exact symptom name provided in the GOAL.
+4. When summarizing, READ FROM "CURRENT COLLECTED DATA" to ensure you include ALL symptoms, not just recent ones.
+
+Generate a short, clear text reply.
+"""
+
+# --- MAIN LOGIC ---
 
 def generate_ai_response(chat_history: list[dict], current_state: dict = None) -> dict:
     client = get_groq_client()
-    messages = build_messages(chat_history, current_state)
+    user_message = chat_history[-1]["content"].strip()
+
+    # --- STEP 1: EXTRACT DATA (The Brain) ---
+    if not current_state:
+        current_state = {"symptoms": []}
+
+    extract_messages = [
+        {"role": "system", "content": EXTRACT_PROMPT.format(
+            current_state=json.dumps(current_state),
+            user_message=user_message
+        )}
+    ]
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=messages,
-            temperature=0.3
+        extract_res = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=extract_messages,
+            temperature=0,
+            response_format={"type": "json_object"}
         )
-        content = response.choices[0].message.content
-        data = json.loads(content)
-
-        # --- SMART REPAIR LOGIC ---
-
-        # 1. Fix "Root Level Symptoms" bug
-        if "symptoms" in data and isinstance(data["symptoms"], list):
-            if "extracted" not in data:
-                data["extracted"] = {"current_symptom_index": 0, "symptoms": []}
-
-            if not data["extracted"].get("symptoms"):
-                raw_symptoms = data["symptoms"]
-                fixed_symptoms = []
-                for item in raw_symptoms:
-                    if isinstance(item, str):
-                        fixed_symptoms.append({
-                            "symptom": item, "severity": None, "duration": None, "frequency": None
-                        })
-                    elif isinstance(item, dict):
-                        fixed_symptoms.append(item)
-                data["extracted"]["symptoms"] = fixed_symptoms
-
-        # 2. Ensure "extracted" structure exists
-        if "extracted" not in data:
-            data["extracted"] = current_state if current_state else {
-                "current_symptom_index": 0,
-                "symptoms": []
-            }
-
-        # 3. Ensure "off_topic" exists
-        if "off_topic" not in data:
-            data["off_topic"] = False
-
-        # 4. CRITICAL FIX: Ensure "reply" exists with INTELLIGENT FALLBACK
-        # Check synonyms first
-        if "reply" not in data:
-            if "message" in data: data["reply"] = data["message"]
-            elif "response" in data: data["reply"] = data["response"]
-            elif "question" in data: data["reply"] = data["question"]
-            else:
-                # Use our new helper function to generate the correct question
-                data["reply"] = generate_fallback_question(data["extracted"])
-
-        return data
-
-    except json.JSONDecodeError:
-        print("JSON Decode Error")
-        return {
-            "reply": "Sorry, I couldn't understand that clearly. Could you clarify?",
-            "off_topic": False,
-            "extracted": current_state if current_state else {
-                "current_symptom_index": 0,
-                "symptoms": []
-            }
-        }
+        new_state = json.loads(extract_res.choices[0].message.content)
     except Exception as e:
-        print(f"General AI Error: {e}")
-        return {
-            "reply": "System error. Please try again.",
-            "off_topic": False,
-            "extracted": current_state if current_state else {
-                "current_symptom_index": 0,
-                "symptoms": []
-            }
-        }
+        print(f"Extraction Failed: {e}")
+        new_state = current_state
+
+    # --- STEP 2: DETERMINE NEXT MOVE (The Logic) ---
+
+    goal = ""
+    symptoms = new_state.get("symptoms", [])
+
+    # Check for "Summary" request
+    if "summary" in user_message.lower():
+        goal = "The user asked for a summary. List ALL collected symptoms from the data with their details. Then ask if the information is correct."
+
+    # Check for simple "Yes"
+    elif "yes" in user_message.lower() and len(user_message) < 10:
+        goal = "The user said 'Yes' to having another symptom. Ask them specifically to name the new symptom."
+
+    else:
+        missing_info_found = False
+
+        # Check for unnamed symptoms
+        for s in symptoms:
+            name = s.get("symptom")
+            if not name or name.lower() in ["yes", "no", "other", "symptom"]:
+                goal = "The user indicated a new symptom but didn't name it. Ask them specifically what the symptom is."
+                missing_info_found = True
+                break
+
+        # Check for missing fields (Reverse order)
+        if not missing_info_found:
+            for s in reversed(symptoms):
+                name = s.get("symptom")
+
+                if not s.get("severity"):
+                    goal = f"Ask how severe the {name} is (accept 1-10 scale)."
+                    missing_info_found = True
+                    break
+                if not s.get("duration"):
+                    goal = f"Ask how long they have had the {name}."
+                    missing_info_found = True
+                    break
+                if not s.get("frequency"):
+                    goal = f"Ask how often the {name} happens."
+                    missing_info_found = True
+                    break
+
+            if not missing_info_found:
+                if len(symptoms) == 0:
+                    goal = "Ask the user what their main symptom is today."
+                else:
+                    if "no" in user_message.lower() and len(user_message) < 15:
+                        goal = "Thank the user, summarize ALL collected symptoms (Headache, Cough, etc.), and say goodbye."
+                    else:
+                        goal = "Ask if they have any OTHER symptoms they want to mention."
+
+    # --- STEP 3: GENERATE REPLY (The Voice) ---
+
+    msg_history_formatted = "\n".join([f"{m['role']}: {m['content']}" for m in chat_history[-4:]])
+
+    # ✅ FIX: Pass the new_state JSON into the prompt
+    talk_messages = [
+        {"role": "system", "content": CONVERSATION_PROMPT.format(
+            goal_instruction=goal,
+            current_data=json.dumps(new_state, indent=2),
+            chat_history=msg_history_formatted
+        )}
+    ]
+
+    reply_res = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=talk_messages,
+        temperature=0.6
+    )
+
+    bot_reply = reply_res.choices[0].message.content.strip().replace('"', '')
+
+    return {
+        "reply": bot_reply,
+        "off_topic": False,
+        "extracted": new_state
+    }
