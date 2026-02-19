@@ -11,6 +11,8 @@ def get_groq_client():
         raise RuntimeError("GROQ_API_KEY environment variable not set")
     return Groq(api_key=api_key)
 
+
+
 #get ai response
 
 def generate_ai_response(chat_history: list[dict], current_state: dict = None) -> dict:
