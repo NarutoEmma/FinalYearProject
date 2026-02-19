@@ -10,7 +10,7 @@ interface AccessCodeModalProps {
 }
 
 // ✅ CORRECT IP and PORT
-const API_URL = "http://192.168.0.24:8000";
+const API_URL = "http://192.168.0.19:8000";
 
 export default function AccessCodeModal({ visible, onAccessGranted }: AccessCodeModalProps) {
     const [accessCode, setAccessCode] = useState("");

@@ -8,16 +8,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../utils/theme";
-// Make sure this path is correct!
 import AccessCodeModal from "./access_code";
 
-// ⚠️ IMPORTANT: Use your computer's local IP (Check ipconfig)
-const BASE_URL = "http://192.168.0.24:8000";
+const BASE_URL = "http://192.168.0.19:8000";
 
 type Role = "user" | "ai";
 type Message = { id: string; role: Role; text: string; };
 
-// Type for the symptom data
 type Symptom = {
     symptom: string;
     severity?: string;
@@ -35,9 +32,11 @@ export default function BeginFocus() {
     const [sessionId, setSessionId] = useState<number | null>(null);
     const [accessGranted, setAccessGranted] = useState(false);
 
-    // State for collected symptoms
-    const [collectedSymptoms, setCollectedSymptoms] = useState<Symptom[]>([]);
+    // ✅ NEW: Track if session has ended
+    const [sessionEnded, setSessionEnded] = useState(false);
+    const [finalizing, setFinalizing] = useState(false);
 
+    const [collectedSymptoms, setCollectedSymptoms] = useState<Symptom[]>([]);
     const [text, setText] = useState("");
     const [messages, setMessages] = useState<Message[]>([initialWelcomeMessage]);
     const [sending, setSending] = useState(false);
@@ -62,7 +61,9 @@ export default function BeginFocus() {
 
     const onSend = async () => {
         const trimmed = text.trim();
-        if (!trimmed || sending || !sessionId) return;
+
+        // ✅ Prevent sending if session has ended
+        if (!trimmed || sending || !sessionId || sessionEnded) return;
 
         const userMsg: Message = { id: String(Date.now()), role: "user", text: trimmed };
         setMessages((prev) => [...prev, userMsg]);
@@ -81,7 +82,6 @@ export default function BeginFocus() {
             const data = await response.json();
             const aiText = data.reply || "I'm having trouble thinking.";
 
-            // Update the tracker with data from backend
             if (data.extracted && data.extracted.symptoms) {
                 setCollectedSymptoms(data.extracted.symptoms);
             }
@@ -103,31 +103,89 @@ export default function BeginFocus() {
         Speech.speak(text, { onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false) });
     };
 
-    // ✅ CONFIRMATION WRAPPER
     const confirmFinalize = () => {
+        // ✅ Check if already finalized
+        if (sessionEnded) {
+            Alert.alert("Session Ended", "This session has already been finalized.");
+            return;
+        }
+
+        if (collectedSymptoms.length === 0) {
+            Alert.alert(
+                "No Symptoms Recorded",
+                "Please describe your symptoms before finalizing.",
+                [{ text: "OK" }]
+            );
+            return;
+        }
+
         Alert.alert(
-            "Finish Session",
-            "Are you sure you want to finalize this session and send the report to your doctor?",
+            "Finish Session?",
+            `This will generate a PDF report with ${collectedSymptoms.length} symptom(s) and end your session.\n\nContinue?`,
             [
                 { text: "Cancel", style: "cancel" },
-                { text: "Send Report", onPress: finalizeSession }
+                { text: "Finalize", onPress: finalizeSession }
             ]
         );
     };
 
-    const finalizeSession = async () =>{
+    const finalizeSession = async () => {
+        if (!sessionId) {
+            Alert.alert("Error", "No active session found");
+            return;
+        }
+
+        setFinalizing(true);
+
+        console.log("=== FINALIZING SESSION ===");
+        console.log("Session ID:", sessionId);
+
         try {
             const response = await fetch(`${BASE_URL}/sessions/${sessionId}/finalize`, {
-                method: "POST" });
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+            });
+
             const data = await response.json();
-            Alert.alert("Success", "Report sent to doctor!");
-        }catch (error){
-            console.error(error);
-            Alert.alert("Error", "Could not send report to doctor.");
+            console.log("Finalize response:", data);
+
+            if (response.ok) {
+                // ✅ Mark session as ended
+                setSessionEnded(true);
+
+                // ✅ Add final AI message
+                const finalMsg: Message = {
+                    id: String(Date.now()),
+                    role: "ai",
+                    text: "✅ Session completed! Your report has been generated and sent to your doctor. Thank you for using the triage assistant."
+                };
+                setMessages(prev => [...prev, finalMsg]);
+
+                // ✅ Show success alert
+                Alert.alert(
+                    "✅ Session Complete!",
+                    `Your symptom report has been sent to your doctor.\n\n` +
+                    `📄 ${collectedSymptoms.length} symptoms recorded\n` +
+                    `📁 Report: ${data.pdf_path?.split('/').pop() || 'symptom_report.pdf'}\n\n` +
+                    `Your session is now ended.`,
+                    [{ text: "OK" }]
+                );
+
+                console.log("✅ Session finalized successfully");
+            } else {
+                Alert.alert("Error", data.detail || "Could not finalize session");
+            }
+        } catch (error: any) {
+            console.error("Finalize error:", error);
+            Alert.alert(
+                "Connection Error",
+                "Could not finalize session. Please check your connection."
+            );
+        } finally {
+            setFinalizing(false);
         }
     };
 
-    // Render the symptom cards
     const renderSymptomTracker = () => {
         if (collectedSymptoms.length === 0) return null;
 
@@ -173,14 +231,39 @@ export default function BeginFocus() {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 keyboardVerticalOffset={keyboardOffset}
             >
-                {/* ✅ NEW: Action Bar at the top */}
-                {sessionId && (
+                {/* ✅ Action Bar - Hide if session ended */}
+                {sessionId && !sessionEnded && (
                     <View style={styles.topActionsContainer}>
                         <View style={{flex:1}}/>
-                        <TouchableOpacity style={styles.finishButton} onPress={confirmFinalize}>
-                            <Text style={styles.finishButtonText}>Finish & Send</Text>
-                            <Ionicons name="cloud-upload-outline" size={16} color="white" />
-                        </TouchableOpacity>
+
+                        {finalizing ? (
+                            <View style={[styles.finishButton, {backgroundColor: '#999'}]}>
+                                <Text style={styles.finishButtonText}>Finalizing...</Text>
+                                <Ionicons name="hourglass-outline" size={16} color="white" />
+                            </View>
+                        ) : (
+                            <TouchableOpacity
+                                style={[
+                                    styles.finishButton,
+                                    collectedSymptoms.length === 0 && {opacity: 0.5}
+                                ]}
+                                onPress={confirmFinalize}
+                                disabled={collectedSymptoms.length === 0}
+                            >
+                                <Text style={styles.finishButtonText}>
+                                    Finish & Send ({collectedSymptoms.length})
+                                </Text>
+                                <Ionicons name="document-text-outline" size={16} color="white" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+
+                {/* ✅ Session Ended Banner */}
+                {sessionEnded && (
+                    <View style={styles.sessionEndedBanner}>
+                        <Ionicons name="checkmark-circle" size={24} color="#34C759" />
+                        <Text style={styles.sessionEndedText}>Session Ended - Report Sent</Text>
                     </View>
                 )}
 
@@ -195,21 +278,38 @@ export default function BeginFocus() {
                     contentContainerStyle={{ paddingTop: 10, paddingHorizontal: 12, paddingBottom: 20 }}
                 />
 
-                <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: Math.max(10, insets.bottom) }]}>
-                    <View style={[styles.inputPill, { borderColor: colors.border, backgroundColor: 'white' }]}>
-                        <TextInput
-                            style={[styles.textInput, { color: 'black' }]}
-                            placeholder="Type symptoms..."
-                            placeholderTextColor="gray"
-                            value={text}
-                            onChangeText={setText}
-                            onSubmitEditing={onSend}
-                        />
-                        <TouchableOpacity onPress={onSend} disabled={sending}>
-                            <Ionicons name="send" size={20} color="dodgerblue" />
-                        </TouchableOpacity>
+                {/* ✅ Bottom Bar - Hide if session ended */}
+                {!sessionEnded && (
+                    <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: Math.max(10, insets.bottom) }]}>
+                        <View style={[styles.inputPill, { borderColor: colors.border, backgroundColor: 'white' }]}>
+                            <TextInput
+                                style={[styles.textInput, { color: 'black' }]}
+                                placeholder="Type symptoms..."
+                                placeholderTextColor="gray"
+                                value={text}
+                                onChangeText={setText}
+                                onSubmitEditing={onSend}
+                                editable={!sessionEnded && !finalizing}
+                            />
+                            <TouchableOpacity
+                                onPress={onSend}
+                                disabled={sending || sessionEnded || finalizing}
+                            >
+                                <Ionicons name="send" size={20} color={sessionEnded ? "gray" : "dodgerblue"} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </View>
+                )}
+
+                {/* ✅ Session Ended Footer */}
+                {sessionEnded && (
+                    <View style={styles.sessionEndedFooter}>
+                        <Ionicons name="lock-closed" size={18} color="#666" />
+                        <Text style={styles.sessionEndedFooterText}>
+                            This session has ended. Your report is with your doctor.
+                        </Text>
+                    </View>
+                )}
             </KeyboardAvoidingView>
 
             <AccessCodeModal
@@ -221,7 +321,6 @@ export default function BeginFocus() {
 }
 
 const styles = StyleSheet.create({
-    // ✅ NEW STYLES for top button
     topActionsContainer: {
         flexDirection: 'row',
         paddingHorizontal: 12,
@@ -232,8 +331,8 @@ const styles = StyleSheet.create({
     },
     finishButton: {
         flexDirection: 'row',
-        backgroundColor: '#34C759', // Nice medical green
-        paddingVertical: 6,
+        backgroundColor: '#34C759',
+        paddingVertical: 20,
         paddingHorizontal: 12,
         borderRadius: 20,
         alignItems: 'center',
@@ -248,6 +347,42 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         fontSize: 13,
         marginRight: 6
+    },
+
+    // ✅ NEW: Session ended banner
+    sessionEndedBanner: {
+        flexDirection: 'row',
+        backgroundColor: '#e8f5e9',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#c8e6c9',
+    },
+    sessionEndedText: {
+        marginLeft: 10,
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#2e7d32',
+    },
+
+    // ✅ NEW: Session ended footer
+    sessionEndedFooter: {
+        flexDirection: 'row',
+        backgroundColor: '#f5f5f5',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    sessionEndedFooterText: {
+        marginLeft: 10,
+        fontSize: 14,
+        color: '#666',
+        textAlign: 'center',
     },
 
     // Tracker styles
@@ -308,7 +443,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#ffcdd2'
     },
-    // Existing styles...
     row: { width: "100%", marginBottom: 8, flexDirection: "row", alignItems: 'flex-end' },
     rowLeft: { justifyContent: "flex-start" },
     rowRight: { justifyContent: "flex-end" },
