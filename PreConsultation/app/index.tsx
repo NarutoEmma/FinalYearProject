@@ -1,9 +1,12 @@
 import React, { useRef, useState, useEffect } from "react";
 import {
-    View, StyleSheet, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity, FlatList, Text, Alert, ScrollView
+    View, StyleSheet, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity,
+    FlatList, Text, Alert, ScrollView, ActivityIndicator
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Speech from "expo-speech"
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { Ionicons } from "@expo/vector-icons";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,9 +35,10 @@ export default function BeginFocus() {
     const [sessionId, setSessionId] = useState<number | null>(null);
     const [accessGranted, setAccessGranted] = useState(false);
 
-    // ✅ NEW: Track if session has ended
     const [sessionEnded, setSessionEnded] = useState(false);
     const [finalizing, setFinalizing] = useState(false);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);  // ✅ NEW
 
     const [collectedSymptoms, setCollectedSymptoms] = useState<Symptom[]>([]);
     const [text, setText] = useState("");
@@ -53,17 +57,121 @@ export default function BeginFocus() {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }, [messages]);
 
+    // Load chat history from backend
+    const loadChatHistory = async (sessionId: number) => {
+        console.log("📜 Loading chat history for session:", sessionId);
+        setLoadingHistory(true);
+
+        try {
+            const response = await fetch(`${BASE_URL}/chat/${sessionId}/history`, {
+                method: "GET",
+            });
+
+            if (!response.ok) {
+                console.log("⚠️ Could not load chat history:", response.status);
+                return;
+            }
+
+            const data = await response.json();
+            console.log(`📜 Loaded ${data.message_count} previous messages`);
+
+            if (data.messages && data.messages.length > 0) {
+                const loadedMessages: Message[] = data.messages.map((msg: any) => ({
+                    id: msg.id,
+                    role: msg.role as Role,
+                    text: msg.text
+                }));
+
+                setMessages([initialWelcomeMessage, ...loadedMessages]);
+
+                setTimeout(() => {
+                    const welcomeBack: Message = {
+                        id: String(Date.now()),
+                        role: "ai",
+                        text: `📜 Welcome back! Loaded ${data.message_count} previous message(s). You can continue from where you left off.`
+                    };
+                    setMessages(prev => [...prev, welcomeBack]);
+                }, 500);
+
+                console.log("✅ Chat history loaded successfully");
+            } else {
+                console.log("ℹ️ No previous messages found - starting fresh");
+            }
+
+        } catch (error: any) {
+            console.error("❌ Error loading chat history:", error.message);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    const downloadPdfToPhone = async () => {
+        if (!sessionId) {
+            Alert.alert("Error", "No session found");
+            return;
+        }
+
+        console.log("📥 Downloading PDF to phone...");
+        setDownloadingPdf(true);
+
+        try {
+            const timestamp = new Date().getTime();
+            const fileName = `symptom_report_${sessionId}_${timestamp}.pdf`;
+            const fileUri = FileSystem.documentDirectory + fileName;
+
+            console.log("📂 Saving to:", fileUri);
+
+            const downloadResult = await FileSystem.downloadAsync(
+                `${BASE_URL}/sessions/${sessionId}/download-pdf`,
+                fileUri
+            );
+
+            console.log("✅ PDF downloaded:", downloadResult.uri);
+
+            const canShare = await Sharing.isAvailableAsync();
+
+            if (canShare) {
+                await Sharing.shareAsync(downloadResult.uri, {
+                    mimeType: 'application/pdf',
+                    dialogTitle: 'Save Your Symptom Report',
+                    UTI: 'com.adobe.pdf',
+                });
+
+                console.log("✅ PDF shared successfully");
+            } else {
+                Alert.alert(
+                    "Download Complete",
+                    `Your report has been downloaded as: ${fileName}`,
+                    [{ text: "OK" }]
+                );
+            }
+
+        } catch (error: any) {
+            console.error("❌ Error downloading PDF:", error);
+            Alert.alert(
+                "Download Error",
+                "Could not download your report. Please try again or ask your doctor for a copy.",
+                [{ text: "OK" }]
+            );
+        } finally {
+            setDownloadingPdf(false);
+        }
+    };
+
     const handleAccessGranted = (id: number) => {
         console.log("Access Granted with Session ID:", id);
         setSessionId(id);
         setAccessGranted(true);
+
+        setTimeout(() => {
+            loadChatHistory(id);
+        }, 300);
     };
 
     const onSend = async () => {
         const trimmed = text.trim();
 
-        // ✅ Prevent sending if session has ended
-        if (!trimmed || sending || !sessionId || sessionEnded) return;
+        if (!trimmed || sending || !sessionId || sessionEnded || loadingHistory) return;
 
         const userMsg: Message = { id: String(Date.now()), role: "user", text: trimmed };
         setMessages((prev) => [...prev, userMsg]);
@@ -104,7 +212,6 @@ export default function BeginFocus() {
     };
 
     const confirmFinalize = () => {
-        // ✅ Check if already finalized
         if (sessionEnded) {
             Alert.alert("Session Ended", "This session has already been finalized.");
             return;
@@ -150,23 +257,21 @@ export default function BeginFocus() {
             console.log("Finalize response:", data);
 
             if (response.ok) {
-                // ✅ Mark session as ended
                 setSessionEnded(true);
 
-                // ✅ Add final AI message
                 const finalMsg: Message = {
                     id: String(Date.now()),
                     role: "ai",
-                    text: "✅ Session completed! Your report has been generated and sent to your doctor. Thank you for using the triage assistant."
+                    text: "✅ Session completed! Your report has been generated and sent to your doctor. You can download a copy for yourself using the button below."
                 };
                 setMessages(prev => [...prev, finalMsg]);
 
-                // ✅ Show success alert
                 Alert.alert(
                     "✅ Session Complete!",
-                    `Your symptom report has been sent to your doctor.\n\n` +
+                    `Your symptom report has been generated.\n\n` +
                     `📄 ${collectedSymptoms.length} symptoms recorded\n` +
-                    `📁 Report: ${data.pdf_path?.split('/').pop() || 'symptom_report.pdf'}\n\n` +
+                    `📁 Report sent to your doctor\n` +
+                    `📥 Use the "Download Report" button to save a copy\n\n` +
                     `Your session is now ended.`,
                     [{ text: "OK" }]
                 );
@@ -231,7 +336,15 @@ export default function BeginFocus() {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 keyboardVerticalOffset={keyboardOffset}
             >
-                {/* ✅ Action Bar - Hide if session ended */}
+                {/* Loading History Indicator */}
+                {loadingHistory && (
+                    <View style={styles.loadingBanner}>
+                        <Ionicons name="time-outline" size={20} color="#007AFF" />
+                        <Text style={styles.loadingText}>Loading previous messages...</Text>
+                    </View>
+                )}
+
+                {/* Action Bar - Hide if session ended */}
                 {sessionId && !sessionEnded && (
                     <View style={styles.topActionsContainer}>
                         <View style={{flex:1}}/>
@@ -259,12 +372,48 @@ export default function BeginFocus() {
                     </View>
                 )}
 
-                {/* ✅ Session Ended Banner */}
+                {/* ✅ Session Ended Banner + Download Section */}
                 {sessionEnded && (
-                    <View style={styles.sessionEndedBanner}>
-                        <Ionicons name="checkmark-circle" size={24} color="#34C759" />
-                        <Text style={styles.sessionEndedText}>Session Ended - Report Sent</Text>
-                    </View>
+                    <>
+                        <View style={styles.sessionEndedBanner}>
+                            <Ionicons name="checkmark-circle" size={24} color="#34C759" />
+                            <Text style={styles.sessionEndedText}>Session Ended - Report Sent</Text>
+                        </View>
+
+                        {/* ✅ Download Button Section */}
+                        <View style={styles.downloadContainer}>
+                            <Text style={styles.downloadTitle}>Your Report</Text>
+                            <Text style={styles.downloadSubtitle}>
+                                Your symptom report has been sent to your doctor.
+                                Download a copy to save on your phone.
+                            </Text>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.downloadButton,
+                                    downloadingPdf && styles.downloadButtonDisabled
+                                ]}
+                                onPress={downloadPdfToPhone}
+                                disabled={downloadingPdf}
+                            >
+                                {downloadingPdf ? (
+                                    <>
+                                        <ActivityIndicator size="small" color="white" />
+                                        <Text style={styles.downloadButtonText}>Downloading...</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Ionicons name="download-outline" size={22} color="white" />
+                                        <Text style={styles.downloadButtonText}>Download My Report</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+
+                            <Text style={styles.downloadHint}>
+                                💡 Tip: You can save it to Files, iCloud, or share via AirDrop
+                            </Text>
+                        </View>
+                    </>
                 )}
 
                 {/* Tracker Component */}
@@ -278,30 +427,30 @@ export default function BeginFocus() {
                     contentContainerStyle={{ paddingTop: 10, paddingHorizontal: 12, paddingBottom: 20 }}
                 />
 
-                {/* ✅ Bottom Bar - Hide if session ended */}
+                {/* Bottom Bar - Hide if session ended */}
                 {!sessionEnded && (
                     <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: Math.max(10, insets.bottom) }]}>
                         <View style={[styles.inputPill, { borderColor: colors.border, backgroundColor: 'white' }]}>
                             <TextInput
                                 style={[styles.textInput, { color: 'black' }]}
-                                placeholder="Type symptoms..."
+                                placeholder={loadingHistory ? "Loading..." : "Type symptoms..."}
                                 placeholderTextColor="gray"
                                 value={text}
                                 onChangeText={setText}
                                 onSubmitEditing={onSend}
-                                editable={!sessionEnded && !finalizing}
+                                editable={!sessionEnded && !finalizing && !loadingHistory}
                             />
                             <TouchableOpacity
                                 onPress={onSend}
-                                disabled={sending || sessionEnded || finalizing}
+                                disabled={sending || sessionEnded || finalizing || loadingHistory}
                             >
-                                <Ionicons name="send" size={20} color={sessionEnded ? "gray" : "dodgerblue"} />
+                                <Ionicons name="send" size={20} color={(sessionEnded || loadingHistory) ? "gray" : "dodgerblue"} />
                             </TouchableOpacity>
                         </View>
                     </View>
                 )}
 
-                {/* ✅ Session Ended Footer */}
+                {/* Session Ended Footer */}
                 {sessionEnded && (
                     <View style={styles.sessionEndedFooter}>
                         <Ionicons name="lock-closed" size={18} color="#666" />
@@ -321,6 +470,23 @@ export default function BeginFocus() {
 }
 
 const styles = StyleSheet.create({
+    loadingBanner: {
+        flexDirection: 'row',
+        backgroundColor: '#e3f2fd',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#bbdefb',
+    },
+    loadingText: {
+        marginLeft: 8,
+        fontSize: 14,
+        color: '#1976d2',
+        fontWeight: '500',
+    },
+
     topActionsContainer: {
         flexDirection: 'row',
         paddingHorizontal: 12,
@@ -332,7 +498,7 @@ const styles = StyleSheet.create({
     finishButton: {
         flexDirection: 'row',
         backgroundColor: '#34C759',
-        paddingVertical: 20,
+        paddingVertical: 30,
         paddingHorizontal: 12,
         borderRadius: 20,
         alignItems: 'center',
@@ -349,7 +515,6 @@ const styles = StyleSheet.create({
         marginRight: 6
     },
 
-    // ✅ NEW: Session ended banner
     sessionEndedBanner: {
         flexDirection: 'row',
         backgroundColor: '#e8f5e9',
@@ -367,7 +532,63 @@ const styles = StyleSheet.create({
         color: '#2e7d32',
     },
 
-    // ✅ NEW: Session ended footer
+    // ✅ NEW: Download section styles
+    downloadContainer: {
+        backgroundColor: '#ffffff',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    downloadTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 6,
+    },
+    downloadSubtitle: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 16,
+        lineHeight: 20,
+    },
+    downloadButton: {
+        flexDirection: 'row',
+        backgroundColor: '#007AFF',
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: "#007AFF",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        elevation: 4,
+    },
+    downloadButtonDisabled: {
+        backgroundColor: '#999',
+        shadowOpacity: 0.1,
+    },
+    downloadButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '600',
+        marginLeft: 10,
+    },
+    downloadHint: {
+        fontSize: 12,
+        color: '#888',
+        marginTop: 12,
+        textAlign: 'center',
+        fontStyle: 'italic',
+    },
+
     sessionEndedFooter: {
         flexDirection: 'row',
         backgroundColor: '#f5f5f5',
@@ -385,7 +606,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
 
-    // Tracker styles
     trackerContainer: {
         marginHorizontal: 10,
         marginVertical: 5,
