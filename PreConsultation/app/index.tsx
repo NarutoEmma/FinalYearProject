@@ -1,17 +1,20 @@
 import React, { useRef, useState, useEffect } from "react";
+import { Recording } from 'expo-av/build/Audio';
 import {
     View, StyleSheet, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity,
-    FlatList, Text, Alert, ScrollView, ActivityIndicator
+    FlatList, Text, Alert, ScrollView, ActivityIndicator, Animated
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Speech from "expo-speech"
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { Audio } from 'expo-av';
 import { Ionicons } from "@expo/vector-icons";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../utils/theme";
 import AccessCodeModal from "./access_code";
+
 
 const BASE_URL = "http://192.168.0.19:8000";
 
@@ -38,7 +41,13 @@ export default function BeginFocus() {
     const [sessionEnded, setSessionEnded] = useState(false);
     const [finalizing, setFinalizing] = useState(false);
     const [loadingHistory, setLoadingHistory] = useState(false);
-    const [downloadingPdf, setDownloadingPdf] = useState(false);  // ✅ NEW
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+    // ✅ NEW: Recording states using expo-av
+    const [recording, setRecording] = useState<Recording | null>(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const [hasAudioPermission, setHasAudioPermission] = useState(false);
+    const [transcribing, setTranscribing] = useState(false);
 
     const [collectedSymptoms, setCollectedSymptoms] = useState<Symptom[]>([]);
     const [text, setText] = useState("");
@@ -56,6 +65,157 @@ export default function BeginFocus() {
     useEffect(() => {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }, [messages]);
+
+    // ✅ Request microphone permission
+    const requestAudioPermission = async () => {
+        try {
+            const { status } = await Audio.requestPermissionsAsync();
+            const granted = status === 'granted';
+            setHasAudioPermission(granted);
+
+            if (!granted) {
+                Alert.alert(
+                    "Microphone Permission",
+                    "Please enable microphone access in your device settings to use voice input.",
+                    [{ text: "OK" }]
+                );
+            }
+
+            return granted;
+        } catch (error) {
+            console.error("❌ Error requesting audio permission:", error);
+            return false;
+        }
+    };
+
+    // ✅ Initialize on mount
+    useEffect(() => {
+        requestAudioPermission();
+    }, []);
+
+    // ✅ Start recording
+    const startRecording = async () => {
+        try {
+            // Check permission
+            if (!hasAudioPermission) {
+                const granted = await requestAudioPermission();
+                if (!granted) return;
+            }
+
+            // Stop any text-to-speech
+            if (speaking) {
+                Speech.stop();
+                setSpeaking(false);
+            }
+
+            console.log('🎤 Starting recording...');
+
+            // Set audio mode
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+            });
+
+            // Start recording
+            const { recording: newRecording } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+
+            setRecording(newRecording);
+            setIsRecording(true);
+            console.log('🎤 Recording started');
+
+        } catch (error: any) {
+            console.error('❌ Failed to start recording:', error);
+            Alert.alert(
+                "Recording Error",
+                "Could not start recording. Please try again."
+            );
+            setIsRecording(false);
+        }
+    };
+
+    // ✅ Stop recording and transcribe
+    const stopRecording = async () => {
+        if (!recording) return;
+
+        try {
+            console.log('🎤 Stopping recording...');
+            setIsRecording(false);
+
+            await recording.stopAndUnloadAsync();
+            const uri = recording.getURI();
+            setRecording(null);
+
+            console.log('📁 Recording saved to:', uri);
+
+            // Transcribe the audio
+            if (uri) {
+                await transcribeAudio(uri);
+            }
+
+        } catch (error) {
+            console.error('❌ Error stopping recording:', error);
+        }
+    };
+
+    // ✅ Send audio to backend for transcription
+    const transcribeAudio = async (audioUri: string) => {
+        setTranscribing(true);
+
+        try {
+            console.log('🔄 Transcribing audio...');
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('file', {
+                uri: audioUri,
+                type: 'audio/m4a',
+                name: 'recording.m4a',
+            } as any);
+
+            // Send to backend
+            const response = await fetch(`${BASE_URL}/sessions/transcribe-audio`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            const result = await response.json();
+            console.log('📝 Transcription result:', result);
+
+            if (result.success && result.text) {
+                // Set transcribed text to input field
+                setText(result.text);
+                console.log('✅ Transcribed:', result.text);
+            } else {
+                Alert.alert(
+                    "Transcription Failed",
+                    result.error || "Could not transcribe audio. Please try again."
+                );
+            }
+
+        } catch (error: any) {
+            console.error('❌ Transcription error:', error);
+            Alert.alert(
+                "Error",
+                "Could not transcribe audio. Please check your connection."
+            );
+        } finally {
+            setTranscribing(false);
+        }
+    };
+
+    // ✅ Toggle recording
+    const toggleRecording = async () => {
+        if (isRecording) {
+            await stopRecording();
+        } else {
+            await startRecording();
+        }
+    };
 
     // Load chat history from backend
     const loadChatHistory = async (sessionId: number) => {
@@ -372,7 +532,7 @@ export default function BeginFocus() {
                     </View>
                 )}
 
-                {/* ✅ Session Ended Banner + Download Section */}
+                {/* Session Ended Banner + Download Section */}
                 {sessionEnded && (
                     <>
                         <View style={styles.sessionEndedBanner}>
@@ -380,7 +540,6 @@ export default function BeginFocus() {
                             <Text style={styles.sessionEndedText}>Session Ended - Report Sent</Text>
                         </View>
 
-                        {/* ✅ Download Button Section */}
                         <View style={styles.downloadContainer}>
                             <Text style={styles.downloadTitle}>Your Report</Text>
                             <Text style={styles.downloadSubtitle}>
@@ -427,24 +586,63 @@ export default function BeginFocus() {
                     contentContainerStyle={{ paddingTop: 10, paddingHorizontal: 12, paddingBottom: 20 }}
                 />
 
-                {/* Bottom Bar - Hide if session ended */}
+                {/* ✅ Bottom Bar with Recording */}
                 {!sessionEnded && (
                     <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: Math.max(10, insets.bottom) }]}>
+                        {/* Recording indicator */}
+                        {isRecording && (
+                            <View style={styles.recordingIndicator}>
+                                <View style={styles.recordingDot} />
+                                <Text style={styles.recordingText}>🎤 Recording... Tap to stop</Text>
+                            </View>
+                        )}
+
+                        {/* Transcribing indicator */}
+                        {transcribing && (
+                            <View style={styles.transcribingIndicator}>
+                                <ActivityIndicator size="small" color="#007AFF" />
+                                <Text style={styles.transcribingText}>Transcribing...</Text>
+                            </View>
+                        )}
+
                         <View style={[styles.inputPill, { borderColor: colors.border, backgroundColor: 'white' }]}>
+                            {/* Microphone button */}
+                            <TouchableOpacity
+                                style={styles.micButton}
+                                onPress={toggleRecording}
+                                disabled={sessionEnded || finalizing || loadingHistory || transcribing}
+                            >
+                                <Ionicons
+                                    name={isRecording ? "stop-circle" : "mic-outline"}
+                                    size={24}
+                                    color={isRecording ? "#FF3B30" : "#007AFF"}
+                                />
+                            </TouchableOpacity>
+
                             <TextInput
                                 style={[styles.textInput, { color: 'black' }]}
-                                placeholder={loadingHistory ? "Loading..." : "Type symptoms..."}
+                                placeholder={
+                                    transcribing ? "Transcribing..." :
+                                        isRecording ? "Recording..." :
+                                            loadingHistory ? "Loading..." :
+                                                "Type or speak your symptoms..."
+                                }
                                 placeholderTextColor="gray"
                                 value={text}
                                 onChangeText={setText}
                                 onSubmitEditing={onSend}
-                                editable={!sessionEnded && !finalizing && !loadingHistory}
+                                editable={!sessionEnded && !finalizing && !loadingHistory && !isRecording && !transcribing}
                             />
+
                             <TouchableOpacity
                                 onPress={onSend}
-                                disabled={sending || sessionEnded || finalizing || loadingHistory}
+                                disabled={sending || sessionEnded || finalizing || loadingHistory || isRecording || transcribing}
                             >
-                                <Ionicons name="send" size={20} color={(sessionEnded || loadingHistory) ? "gray" : "dodgerblue"} />
+                                <Ionicons
+                                    name="send"
+                                    size={20}
+                                    color={(sessionEnded || loadingHistory || isRecording || transcribing) ? "gray" : "dodgerblue"}
+                                />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -486,7 +684,6 @@ const styles = StyleSheet.create({
         color: '#1976d2',
         fontWeight: '500',
     },
-
     topActionsContainer: {
         flexDirection: 'row',
         paddingHorizontal: 12,
@@ -498,7 +695,7 @@ const styles = StyleSheet.create({
     finishButton: {
         flexDirection: 'row',
         backgroundColor: '#34C759',
-        paddingVertical: 30,
+        paddingVertical: 20,
         paddingHorizontal: 12,
         borderRadius: 20,
         alignItems: 'center',
@@ -514,7 +711,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         marginRight: 6
     },
-
     sessionEndedBanner: {
         flexDirection: 'row',
         backgroundColor: '#e8f5e9',
@@ -531,8 +727,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#2e7d32',
     },
-
-    // ✅ NEW: Download section styles
     downloadContainer: {
         backgroundColor: '#ffffff',
         paddingHorizontal: 20,
@@ -588,7 +782,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontStyle: 'italic',
     },
-
     sessionEndedFooter: {
         flexDirection: 'row',
         backgroundColor: '#f5f5f5',
@@ -605,7 +798,6 @@ const styles = StyleSheet.create({
         color: '#666',
         textAlign: 'center',
     },
-
     trackerContainer: {
         marginHorizontal: 10,
         marginVertical: 5,
@@ -662,6 +854,50 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: '#ffcdd2'
+    },
+    recordingIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        backgroundColor: '#FFF3CD',
+        borderRadius: 20,
+        marginBottom: 8,
+        alignSelf: 'center',
+    },
+    recordingDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#FF3B30',
+        marginRight: 8,
+    },
+    recordingText: {
+        fontSize: 14,
+        color: '#856404',
+        fontWeight: '600',
+    },
+    transcribingIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        backgroundColor: '#e3f2fd',
+        borderRadius: 20,
+        marginBottom: 8,
+        alignSelf: 'center',
+    },
+    transcribingText: {
+        fontSize: 14,
+        color: '#1976d2',
+        fontWeight: '600',
+        marginLeft: 8,
+    },
+    micButton: {
+        padding: 8,
+        marginRight: 8,
     },
     row: { width: "100%", marginBottom: 8, flexDirection: "row", alignItems: 'flex-end' },
     rowLeft: { justifyContent: "flex-start" },

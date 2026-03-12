@@ -1,9 +1,13 @@
 #validate access code, create session and prevent multiple sessions
 import os
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
+import speech_recognition as sr
+import tempfile
+import os
+from pydub import AudioSegment
 
 from backend.app.database import get_db
 from backend.app import schemas, model
@@ -255,3 +259,96 @@ def download_pdf(session_id: int, db: Session = Depends(get_db)):
             "Content-Disposition": f'attachment; filename="{pdf_filename}"'
         }
     )
+
+@router.post("/transcribe-audio")
+async def transcribe_audio(file: UploadFile = File(...)):
+    """
+    Transcribe audio file to text using Google Speech Recognition (free)
+    Works with m4a, wav, mp3 formats
+    """
+    temp_path = None
+    wav_path = None
+
+    try:
+        print(f"📥 Received audio file: {file.filename}")
+        print(f"   Content type: {file.content_type}")
+
+        # Save uploaded file temporarily
+        file_extension = os.path.splitext(file.filename)[1] if file.filename else '.m4a'
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_path = temp_file.name
+            print(f"📁 Saved to: {temp_path}")
+
+        # Convert to WAV if needed (speech_recognition needs WAV)
+        wav_path = temp_path.replace(file_extension, '.wav')
+
+        if file_extension.lower() != '.wav':
+            print(f"🔄 Converting {file_extension} to WAV...")
+            audio = AudioSegment.from_file(temp_path)
+            audio.export(wav_path, format='wav')
+            print(f"✅ Converted to: {wav_path}")
+        else:
+            wav_path = temp_path
+
+        # Transcribe using Google Speech Recognition (FREE!)
+        print("🎤 Starting transcription...")
+        recognizer = sr.Recognizer()
+
+        with sr.AudioFile(wav_path) as source:
+            # Adjust for ambient noise
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+
+            # Record the audio
+            audio_data = recognizer.record(source)
+
+            # Recognize speech using Google Speech Recognition
+            print("🔄 Calling Google Speech API...")
+            text = recognizer.recognize_google(audio_data, language='en-US')
+
+            print(f"✅ Transcription successful: {text}")
+
+            return {
+                "success": True,
+                "text": text,
+                "message": "Audio transcribed successfully"
+            }
+
+    except sr.UnknownValueError:
+        print("❌ Google Speech Recognition could not understand audio")
+        return {
+            "success": False,
+            "text": "",
+            "error": "Could not understand audio. Please speak clearly and try again."
+        }
+
+    except sr.RequestError as e:
+        print(f"❌ Could not request results from Google Speech Recognition service: {e}")
+        return {
+            "success": False,
+            "text": "",
+            "error": "Speech recognition service unavailable. Please try again."
+        }
+
+    except Exception as e:
+        print(f"❌ Transcription error: {str(e)}")
+        return {
+            "success": False,
+            "text": "",
+            "error": f"Transcription failed: {str(e)}"
+        }
+
+    finally:
+        # Clean up temporary files
+        try:
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+                print(f"🗑️ Cleaned up: {temp_path}")
+
+            if wav_path and wav_path != temp_path and os.path.exists(wav_path):
+                os.remove(wav_path)
+                print(f"🗑️ Cleaned up: {wav_path}")
+
+        except Exception as cleanup_error:
+            print(f"⚠️ Cleanup error: {cleanup_error}")
