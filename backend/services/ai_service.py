@@ -23,10 +23,43 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
     if not current_state:
         current_state = {"symptoms": []}
 
+    symptoms = current_state.get("symptoms", [])
+    last_symptom_mentioned = None
+    missing_info_found = False
+
+    # Determine WHICH symptom we're currently asking about
+    # Check for unnamed symptoms
+    for s in symptoms:
+        name = s.get("symptom")
+        if not name or name.lower() in ["yes", "no", "other", "symptom"]:
+            last_symptom_mentioned = name
+            missing_info_found = True
+            break
+
+    # Check for missing fields (Reverse order)
+    if not missing_info_found:
+        for s in reversed(symptoms):
+            name = s.get("symptom")
+            if not s.get("severity"):
+                last_symptom_mentioned = name
+                missing_info_found = True
+                break
+            if not s.get("duration"):
+                last_symptom_mentioned = name
+                missing_info_found = True
+                break
+            if not s.get("frequency"):
+                last_symptom_mentioned = name
+                missing_info_found = True
+                break
+
+    print(f"🎯 Currently asking about: {last_symptom_mentioned}")
+
     extract_messages = [
         {"role": "system", "content": EXTRACT_PROMPT.format(
             current_state=json.dumps(current_state),
-            user_message=user_message
+            user_message=user_message,
+            last_symptom=last_symptom_mentioned or "unknown"
         )}
     ]
 
