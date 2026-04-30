@@ -1,6 +1,6 @@
-# 🏥 AI-Powered Patient Pre-Consultation System
+# AI-Powered Patient Pre-Consultation System
 
-A full-stack mobile application that collects and structures patient symptom data **before** a GP appointment — reducing consultation time and improving the quality of information clinicians receive.
+A full-stack mobile application that collects and structures patient symptom data **before** a GP appointment, reducing consultation time and improving the quality of information clinicians receive.
 
 Built with a React Native frontend, FastAPI backend, MySQL database, and Groq (LLaMA) for AI-driven adaptive conversation.
 
