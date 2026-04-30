@@ -8,7 +8,7 @@ Built with a React Native frontend, FastAPI backend, MySQL database, and Groq (L
 
 ## 💡 Motivation
 
-Standard GP intake forms are rigid and impersonal. Patients — especially those who are anxious or unfamiliar with medical language — often struggle to describe what's wrong in a fixed format. This system replaces that experience with a natural, conversational AI that follows the patient's own language, asking adaptive follow-up questions based on what they actually say, not a predetermined script.
+Standard GP intake forms are rigid and impersonal. Patients — especially those who are anxious or unfamiliar with medical language  often struggle to describe what's wrong in a fixed format. This system replaces that experience with a natural, conversational AI that follows the patient's own language, asking adaptive follow-up questions based on what they actually say, not a predetermined script.
 
 This insight came directly from real-world care experience working with vulnerable adults who avoided seeking medical help because the process felt inaccessible.
 
