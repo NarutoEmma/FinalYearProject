@@ -1,9 +1,9 @@
-# cleanup_old_sessions.py
+#cleanup_old_sessions.py
 import sys
 from pathlib import Path
 from datetime import datetime
 
-# Add project root to path
+#add project root to path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
@@ -40,17 +40,17 @@ def cleanup_sessions_range(start_id: int, end_id: int):
             already_ended_count += 1
             continue
 
-        # End the session
+        #end the session
         session.ended_at = datetime.now()
 
-        # Update appointment status
+        #update appointment status
         if session.appointment:
             session.appointment.status = "completed"
 
         print(f"✅ Session {session_id}: Ended (Appointment: {session.appointment_id if session.appointment else 'None'})")
         ended_count += 1
 
-    # Commit all changes
+    #commit all changes
     db.commit()
     db.close()
 
@@ -63,5 +63,5 @@ def cleanup_sessions_range(start_id: int, end_id: int):
     print("=" * 70)
 
 if __name__ == "__main__":
-    # End sessions 1-35
+    #end sessions 1-35
     cleanup_sessions_range(1, 35)

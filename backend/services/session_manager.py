@@ -2,13 +2,12 @@
 import sys
 from pathlib import Path
 
-# Add project root to Python path
+#add project root to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# ✅ IMPORTANT: Load .env file BEFORE importing database
 from dotenv import load_dotenv
-load_dotenv()  # This loads your DB credentials
+load_dotenv()  # load DB credentials
 
 from backend.app.database import SessionLocal
 from backend.app.model import Session, Appointment

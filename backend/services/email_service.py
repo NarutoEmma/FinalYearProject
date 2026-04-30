@@ -9,7 +9,7 @@ from typing import Optional
 # Load environment variables
 load_dotenv()
 
-# --- SECURE CONFIGURATION FROM ENVIRONMENT ---
+# Secure configuration
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_APP_PASSWORD")
 DOCTOR_EMAIL = os.getenv("DOCTOR_EMAIL")
@@ -55,7 +55,7 @@ def send_report_email(
         return {"success": False, "message": error_msg}
 
     try:
-        # 1. Setup the Email
+        # 1 Setup the Email
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
         msg['To'] = recipient
@@ -80,7 +80,7 @@ This is an automated message. Please do not reply to this email.
         """
         msg.attach(MIMEText(body, 'plain'))
 
-        # 2. Attach the PDF
+        # 2 Attach the PDF
         with open(pdf_path, "rb") as f:
             pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
             pdf_attachment.add_header(
@@ -90,7 +90,7 @@ This is an automated message. Please do not reply to this email.
             )
             msg.attach(pdf_attachment)
 
-        # 3. Connect to Gmail Server and Send
+        # 3 Connect to Gmail Server and Send
         print(f"📧 Connecting to Gmail server...")
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()

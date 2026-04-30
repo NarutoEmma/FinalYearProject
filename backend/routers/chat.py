@@ -7,13 +7,13 @@ from backend.services.ai_service import generate_ai_response
 
 router = APIRouter(tags=["Chat"])
 
-# ✅ NEW: Get chat history endpoint
+# Get chat history endpoint
 @router.get("/{session_id}/history")
 def get_chat_history(session_id: int, db: Session = Depends(get_db)):
     """
     Get all previous chat messages for a session
     """
-    # Validate session exists
+    #validate session exists
     session = db.query(model.Session).filter(
         model.Session.id == session_id
     ).first()
@@ -86,11 +86,11 @@ def chat_with_ai(
         for m in messages
     ]
 
-    # Call AI
+    #call AI
     ai_response = generate_ai_response(chat_history, current_state)
     reply_content = ai_response.get("reply", "i'm listening")
 
-    # Save AI reply
+    #save AI reply
     ai_message = model.Message(
         session_id=session_id,
         sender="ai",

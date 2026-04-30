@@ -5,8 +5,7 @@ from reportlab.lib.units import cm
 import os
 from datetime import datetime
 
-def generate_summary_pdf(session_id: int, patient_name: str, symptoms: list, file_path: str):
-    """
+"""
     Generate a professional PDF report of patient symptoms
 
     Args:
@@ -18,10 +17,12 @@ def generate_summary_pdf(session_id: int, patient_name: str, symptoms: list, fil
     Returns:
         file_path: Path to generated PDF
     """
+def generate_summary_pdf(session_id: int, patient_name: str, symptoms: list, file_path: str):
+
     c = canvas.Canvas(file_path, pagesize=letter)
     width, height = letter
 
-    # ==================== HEADER ====================
+    # HEADER
     c.setFont("Helvetica-Bold", 18)
     c.drawString(50, height - 50, "Patient Pre-Consultation Report")
 
@@ -36,7 +37,7 @@ def generate_summary_pdf(session_id: int, patient_name: str, symptoms: list, fil
     c.setLineWidth(1)
     c.line(50, height - 140, width - 50, height - 140)
 
-    # ==================== SYMPTOMS SECTION ====================
+    # SYMPTOMS SECTION
     y_pos = height - 180
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, y_pos, "Reported Symptoms:")
@@ -81,7 +82,7 @@ def generate_summary_pdf(session_id: int, patient_name: str, symptoms: list, fil
             c.line(70, y_pos + 5, width - 70, y_pos + 5)
             y_pos -= 10
 
-    # ==================== FOOTER ====================
+    # FOOTER
     c.setFont("Helvetica-Oblique", 8)
     c.setFillColor(colors.grey)
     footer_text = "This report is generated automatically and should be reviewed by a healthcare professional."
@@ -94,7 +95,7 @@ def generate_summary_pdf(session_id: int, patient_name: str, symptoms: list, fil
     return file_path
 
 
-# ==================== TEST FUNCTION ====================
+# TEST FUNCTION
 def test_pdf_generation():
     """Test the PDF generator with sample data"""
     test_symptoms = [
@@ -135,5 +136,4 @@ def test_pdf_generation():
 
 
 if __name__ == "__main__":
-    # Run test when script is executed directly
     test_pdf_generation()

@@ -4,7 +4,7 @@ from groq import Groq
 from backend.prompts.conversation import CONVERSATION_PROMPT
 from backend.prompts.extractor import EXTRACT_PROMPT
 
-#api config
+# Api config
 def get_groq_client():
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
@@ -19,7 +19,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
     client = get_groq_client()
     user_message = chat_history[-1]["content"].strip()
 
-    # --- STEP 1: EXTRACT DATA (The Brain) ---
+    # Step 1: EXTRACT DATA (The Brain)
     if not current_state:
         current_state = {"symptoms": []}
 
@@ -36,7 +36,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
             missing_info_found = True
             break
 
-    # Check for missing fields (Reverse order)
+    # Check for missing fields in reverse order
     if not missing_info_found:
         for s in reversed(symptoms):
             name = s.get("symptom")
@@ -75,7 +75,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
         print(f"Extraction Failed: {e}")
         new_state = current_state
 
-    # --- STEP 2: DETERMINE NEXT MOVE (The Logic) ---
+    #Step 2: determine the next move (The Logic)
 
     goal = ""
     symptoms = new_state.get("symptoms", [])
@@ -99,7 +99,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
                 missing_info_found = True
                 break
 
-        # Check for missing fields (Reverse order)
+        # Check for missing fields in reverse order
         if not missing_info_found:
             for s in reversed(symptoms):
                 name = s.get("symptom")
@@ -126,7 +126,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
                     else:
                         goal = "Ask if they have any OTHER symptoms they want to mention."
 
-    # --- STEP 3: GENERATE REPLY (The Voice) ---
+    # Step 3: generate reply (The Voice)
 
     msg_history_formatted = "\n".join([f"{m['role']}: {m['content']}" for m in chat_history[-4:]])
 

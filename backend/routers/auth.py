@@ -36,7 +36,7 @@ def register_doctor(
     return {"id":new_doctor.id, "full_name":new_doctor.full_name,
             "email": new_doctor.email}
 
-#login doctor
+# Login doctor
 @router.post("/login", response_model=schemas.Token)
 def login_doctor(
         form_data: OAuth2PasswordRequestForm=Depends(),
