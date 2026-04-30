@@ -9,8 +9,8 @@ interface AccessCodeModalProps {
     onAccessGranted: (sessionId: number) => void;
 }
 
-// ✅ CORRECT IP and PORT
-const API_URL = "http://192.168.0.19:8000";
+// IP and pORT
+const API_URL = "http://192.168.0.15:8000";
 
 export default function AccessCodeModal({ visible, onAccessGranted }: AccessCodeModalProps) {
     const [accessCode, setAccessCode] = useState("");
@@ -26,8 +26,7 @@ export default function AccessCodeModal({ visible, onAccessGranted }: AccessCode
         setLoading(true);
 
         try {
-            // ✅ CORRECTED: Only one fetch, inside the try block
-            // ✅ CORRECTED: Removed duplicate '/sessions' from URL
+
             const response = await fetch(`${API_URL}/sessions/start`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -55,7 +54,7 @@ export default function AccessCodeModal({ visible, onAccessGranted }: AccessCode
             console.error("Fetch error:", error);
             let msg = error.message;
 
-            // Friendly error messages
+            // User friendly error messages
             if (msg.includes("Network request failed")) {
                 msg = "Could not connect to server. Check your computer IP and Firewall.";
             }

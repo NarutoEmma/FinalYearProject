@@ -16,7 +16,7 @@ import { useTheme } from "../utils/theme";
 import AccessCodeModal from "./access_code";
 
 
-const BASE_URL = "http://192.168.0.19:8000";
+const BASE_URL = "http://192.168.0.15:8000";
 
 type Role = "user" | "ai";
 type Message = { id: string; role: Role; text: string; };
@@ -43,7 +43,7 @@ export default function BeginFocus() {
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-    // ✅ NEW: Recording states using expo-av
+    // Recording states using expo-av
     const [recording, setRecording] = useState<Recording | null>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [hasAudioPermission, setHasAudioPermission] = useState(false);
@@ -66,7 +66,7 @@ export default function BeginFocus() {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }, [messages]);
 
-    // ✅ Request microphone permission
+    // Request microphone permission
     const requestAudioPermission = async () => {
         try {
             const { status } = await Audio.requestPermissionsAsync();
@@ -88,12 +88,12 @@ export default function BeginFocus() {
         }
     };
 
-    // ✅ Initialize on mount
+    // Initialize on mount
     useEffect(() => {
         requestAudioPermission();
     }, []);
 
-    // ✅ Start recording
+    // Start recording
     const startRecording = async () => {
         try {
             // Check permission
@@ -135,7 +135,7 @@ export default function BeginFocus() {
         }
     };
 
-    // ✅ Stop recording and transcribe
+    // Stop recording and transcribe
     const stopRecording = async () => {
         if (!recording) return;
 
@@ -159,7 +159,7 @@ export default function BeginFocus() {
         }
     };
 
-    // ✅ Send audio to backend for transcription
+    // Send audio to backend for transcription
     const transcribeAudio = async (audioUri: string) => {
         setTranscribing(true);
 
@@ -208,7 +208,7 @@ export default function BeginFocus() {
         }
     };
 
-    // ✅ Toggle recording
+    // Toggle recording
     const toggleRecording = async () => {
         if (isRecording) {
             await stopRecording();
@@ -586,7 +586,7 @@ export default function BeginFocus() {
                     contentContainerStyle={{ paddingTop: 10, paddingHorizontal: 12, paddingBottom: 20 }}
                 />
 
-                {/* ✅ Bottom Bar with Recording */}
+                {/* Bottom Bar with Recording */}
                 {!sessionEnded && (
                     <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: Math.max(10, insets.bottom) }]}>
                         {/* Recording indicator */}
