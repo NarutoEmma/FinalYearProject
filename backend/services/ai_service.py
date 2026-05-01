@@ -4,7 +4,7 @@ from groq import Groq
 from backend.prompts.conversation import CONVERSATION_PROMPT
 from backend.prompts.extractor import EXTRACT_PROMPT
 
-# Api config
+#api config
 def get_groq_client():
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
@@ -19,7 +19,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
     client = get_groq_client()
     user_message = chat_history[-1]["content"].strip()
 
-    # Step 1: EXTRACT DATA (The Brain)
+    #step 1: extract data
     if not current_state:
         current_state = {"symptoms": []}
 
@@ -27,8 +27,8 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
     last_symptom_mentioned = None
     missing_info_found = False
 
-    # Determine WHICH symptom we're currently asking about
-    # Check for unnamed symptoms
+    #determine which symptom we're currently asking about
+    #check for unnamed symptoms
     for s in symptoms:
         name = s.get("symptom")
         if not name or name.lower() in ["yes", "no", "other", "symptom"]:
@@ -36,7 +36,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
             missing_info_found = True
             break
 
-    # Check for missing fields in reverse order
+    #check for missing fields in reverse order
     if not missing_info_found:
         for s in reversed(symptoms):
             name = s.get("symptom")
@@ -75,23 +75,23 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
         print(f"Extraction Failed: {e}")
         new_state = current_state
 
-    #Step 2: determine the next move (The Logic)
+    #step 2: determine the next move
 
     goal = ""
     symptoms = new_state.get("symptoms", [])
 
-    # Check for "Summary" request
+    #check if user requests for a "summary" of symptoms
     if "summary" in user_message.lower():
         goal = "The user asked for a summary. List ALL collected symptoms from the data with their details. Then ask if the information is correct."
 
-    # Check for simple "Yes"
+    #check for "yes" responses
     elif "yes" in user_message.lower() and len(user_message) < 10:
         goal = "The user said 'Yes' to having another symptom. Ask them specifically to name the new symptom."
 
     else:
         missing_info_found = False
 
-        # Check for unnamed symptoms
+        #check for unnamed symptoms
         for s in symptoms:
             name = s.get("symptom")
             if not name or name.lower() in ["yes", "no", "other", "symptom"]:
@@ -99,7 +99,7 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
                 missing_info_found = True
                 break
 
-        # Check for missing fields in reverse order
+        #check for missing fields in reverse order
         if not missing_info_found:
             for s in reversed(symptoms):
                 name = s.get("symptom")
@@ -126,11 +126,11 @@ def generate_ai_response(chat_history: list[dict], current_state: dict = None) -
                     else:
                         goal = "Ask if they have any OTHER symptoms they want to mention."
 
-    # Step 3: generate reply (The Voice)
+    #step 3: generate reply
 
     msg_history_formatted = "\n".join([f"{m['role']}: {m['content']}" for m in chat_history[-4:]])
 
-    #Pass the new_state JSON into the prompt
+    #pass the new_state json into the prompt
     talk_messages = [
         {"role": "system", "content": CONVERSATION_PROMPT.format(
             goal_instruction=goal,

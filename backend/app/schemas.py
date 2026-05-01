@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional, List, Union, Any
 
-# Soctor schema
+#doctor schema
 class DoctorBase(BaseModel):
     full_name: str
     email: EmailStr
@@ -21,7 +21,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str="bearer"
 
-# Patients/users
+#patients/users
 
 class UserBase(BaseModel):
     full_name: Optional[str] = None
@@ -50,7 +50,7 @@ class AppointmentResponse(BaseModel):
     class Config:
         orm_mode = True
 
-# Session
+#session
 
 class SessionCreate(BaseModel):
     access_code: str
@@ -65,7 +65,7 @@ class SessionResponse(BaseModel):
     class Config:
         orm_mode = True
 
-# Messages
+#messages
 class MessageCreate(BaseModel):
     content: str
 
@@ -88,13 +88,13 @@ class SymptomInfo(BaseModel):
 class ExtractedInfo(BaseModel):
     symptoms: List[SymptomInfo] = []
 
-# Chat response
+#chat response
 class ChatResponse(BaseModel):
     reply: str
     off_topic: bool
     extracted: Optional[ExtractedInfo] =None
 
-# Summary
+#summary
 class SummaryResponse(BaseModel):
     id: int
     session_id: int

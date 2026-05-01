@@ -18,13 +18,13 @@ router = APIRouter(tags=["sessions"])
 
 @router.post("/start", response_model=schemas.SessionResponse)
 def start_session(payload: schemas.SessionCreate, db: Session = Depends(get_db)):
-    """
-    Start a new session OR resume an existing active session
-    """
-    #1. find appointment by access code (any status except completed)
+
+    #start a new session or resume an existing active session
+
+    #1 find appointment by access code (any status except completed)
     appointment = db.query(model.Appointment).filter(
         model.Appointment.access_code == payload.access_code,
-        model.Appointment.status.in_(["scheduled", "in_progress"])  # ← Allow both!
+        model.Appointment.status.in_(["scheduled", "in_progress"])
     ).first()
 
     if not appointment:
@@ -36,22 +36,22 @@ def start_session(payload: schemas.SessionCreate, db: Session = Depends(get_db))
     #2 check if there's already an active session
     existing_session = db.query(model.Session).filter(
         model.Session.appointment_id == appointment.id,
-        model.Session.ended_at == None  # ← Only check for active sessions
+        model.Session.ended_at == None
     ).first()
 
     if existing_session:
-        # Resume the existing session instead of creating a new one
+        #resume the existing session instead of creating a new one
         print(f"🔄 Resuming existing session {existing_session.id}")
 
         return {
             "id": existing_session.id,
             "appointment_id": appointment.id,
-            "message": "Session resumed",  # ← Different message
+            "message": "Session resumed",
             "started_at": existing_session.started_at,
             "ended_at": None
         }
 
-    # 3 create new session (if first time using code)
+    #3 create new session (if code is used for the first time)
     session = model.Session(
         appointment_id=appointment.id,
         started_at=datetime.now()
@@ -77,9 +77,9 @@ def start_session(payload: schemas.SessionCreate, db: Session = Depends(get_db))
 @router.post("/{session_id}/finalize")
 def finalize_session(session_id: int, db: Session = Depends(get_db)):
 
-    # Finalize session, generate PDF report, and update appointment status
+    #finalize session, generate PDF report, and update appointment status
 
-    # 1 Get session
+    #1 get session
     session = db.query(model.Session).filter(
         model.Session.id == session_id
     ).first()
@@ -87,11 +87,11 @@ def finalize_session(session_id: int, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # 2 check if already finalized
+    #2 check if already finalized
     if session.ended_at:
         raise HTTPException(status_code=400, detail="Session already finalized")
 
-    # 3 get summary with symptoms
+    #3 get summary with symptoms
     summary_row = db.query(model.Summary).filter(
         model.Summary.session_id == session_id
     ).first()
@@ -104,19 +104,19 @@ def finalize_session(session_id: int, db: Session = Depends(get_db)):
 
     symptom_list = summary_row.summary_content.get("symptoms", [])
 
-    # 4 Validate symptoms exist
+    #4 validate symptoms exist
     if not symptom_list:
         raise HTTPException(
             status_code=400,
             detail="No symptoms recorded. Please report symptoms first."
         )
 
-    # 5 Get patient name
+    #5 get patient name
     patient_name = "patient"
     if session.appointment and session.appointment.user:
         patient_name = session.appointment.user.full_name
 
-    # 6 Generate PDF
+    #6 generate pdf
     report_dir = "reports"
     os.makedirs(report_dir, exist_ok=True)
 
@@ -135,7 +135,7 @@ def finalize_session(session_id: int, db: Session = Depends(get_db)):
             detail=f"PDF generation failed: {str(e)}"
         )
 
-    # 7 Send email
+    #7 send email
     email_sent = False
     try:
         email_result = send_report_email(file_path, patient_name, session_id)
@@ -154,17 +154,17 @@ def finalize_session(session_id: int, db: Session = Depends(get_db)):
         print(f"⚠️ Email error: {e}")
         email_sent = False
 
-    # 8 CRITICAL: Mark the session as ended AND update the appointment status
+    #8 Mark the session as ended and update the appointment status
     print(f"⏰ Ending session {session_id}...")
     session.ended_at = datetime.now()
 
-    # UPDATE APPOINTMENT STATUS TO COMPLETED
+    #update appointment status to completed
     if session.appointment:
         print(f"📅 Updating appointment {session.appointment.id} to completed...")
         session.appointment.status = "completed"
         print(f"✅ Appointment status updated to: {session.appointment.status}")
 
-    # 9 Commit all changes to the database
+    #9 commit all changes to the database
     db.commit()
 
     print(f"✅ Session {session_id} finalized successfully")
@@ -173,7 +173,7 @@ def finalize_session(session_id: int, db: Session = Depends(get_db)):
     print(f"   PDF path: {file_path}")
     print("=" * 60)
 
-    # 10 return success response
+    #10 return success response
     return {
         "status": "success",
         "message": "Session finalized, PDF generated, and sent to doctor",
@@ -188,10 +188,10 @@ def finalize_session(session_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{session_id}/download-pdf")
 def download_pdf(session_id: int, db: Session = Depends(get_db)):
-    """
-    Download the PDF report for a session (for patient to save to their phone)
-    """
-    # 1 Validate session exists
+
+    #download the odf report for a session (for patient to save to their phone)
+
+    #1 validate session exists
     session = db.query(model.Session).filter(
         model.Session.id == session_id
     ).first()
@@ -199,14 +199,14 @@ def download_pdf(session_id: int, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # 2 Check if session has been finalized
+    #2 check if session has been finalized
     if not session.ended_at:
         raise HTTPException(
             status_code=400,
             detail="Session not finalized yet. Please finalize the session first."
         )
 
-    # 3 Find the PDF file in reports directory
+    #3 find the pdf file in reports directory
     report_dir = "reports"
 
     if not os.path.exists(report_dir):
@@ -215,7 +215,7 @@ def download_pdf(session_id: int, db: Session = Depends(get_db)):
             detail="Reports directory not found"
         )
 
-    # Look for any PDF with this session ID
+    #look for any pdf with this session id
     try:
         pdf_files = [
             f for f in os.listdir(report_dir)
@@ -234,12 +234,12 @@ def download_pdf(session_id: int, db: Session = Depends(get_db)):
             detail="PDF report not found. The report may have been deleted."
         )
 
-    # 4 Get the most recent PDF if multiple exist (sorted by name, newest first)
+    #4 get the most recent pdf if multiple exist (sorted by name, newest first)
     pdf_files.sort(reverse=True)
     pdf_filename = pdf_files[0]
     pdf_path = os.path.join(report_dir, pdf_filename)
 
-    # 5 Verify file exists
+    #5 verify file exists
     if not os.path.exists(pdf_path):
         raise HTTPException(
             status_code=404,
@@ -250,7 +250,7 @@ def download_pdf(session_id: int, db: Session = Depends(get_db)):
     print(f"   Session ID: {session_id}")
     print(f"   File size: {os.path.getsize(pdf_path)} bytes")
 
-    # 6 Return the file for download
+    #6 return the file for download
     return FileResponse(
         path=pdf_path,
         filename=pdf_filename,
@@ -263,7 +263,7 @@ def download_pdf(session_id: int, db: Session = Depends(get_db)):
 @router.post("/transcribe-audio")
 async def transcribe_audio(file: UploadFile = File(...)):
 
-    #Transcribe audio file to text using Google Speech Recognition
+    #transcribe audio file to text using google speech recognition
 
     temp_path = None
     wav_path = None
@@ -272,7 +272,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         print(f"📥 Received audio file: {file.filename}")
         print(f"   Content type: {file.content_type}")
 
-        # Save uploaded file temporarily
+        #save uploaded file temporarily
         file_extension = os.path.splitext(file.filename)[1] if file.filename else '.m4a'
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
             content = await file.read()
@@ -280,7 +280,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
             temp_path = temp_file.name
             print(f"📁 Saved to: {temp_path}")
 
-        # Convert to WAV if needed
+        #convert to WAV if needed
         wav_path = temp_path.replace(file_extension, '.wav')
 
         if file_extension.lower() != '.wav':
@@ -291,18 +291,18 @@ async def transcribe_audio(file: UploadFile = File(...)):
         else:
             wav_path = temp_path
 
-        # Transcribe using Google Speech Recognition
+        #transcribe using Google Speech Recognition
         print("🎤 Starting transcription...")
         recognizer = sr.Recognizer()
 
         with sr.AudioFile(wav_path) as source:
-            # Adjustment for ambient noise
+            #adjustment for ambient noise
             recognizer.adjust_for_ambient_noise(source, duration=0.5)
 
-            # Record the audio
+            #record the audio
             audio_data = recognizer.record(source)
 
-            # speech recognition using Google Speech Recognition
+            #speech recognition using Google Speech Recognition
             print("🔄 Calling Google Speech API...")
             text = recognizer.recognize_google(audio_data, language='en-US')
 
@@ -339,7 +339,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         }
 
     finally:
-        # Clean up temporary files
+        #clean up temporary files
         try:
             if temp_path and os.path.exists(temp_path):
                 os.remove(temp_path)

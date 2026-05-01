@@ -9,7 +9,7 @@ interface AccessCodeModalProps {
     onAccessGranted: (sessionId: number) => void;
 }
 
-// IP and pORT
+//ip and port
 const API_URL = "http://192.168.0.15:8000";
 
 export default function AccessCodeModal({ visible, onAccessGranted }: AccessCodeModalProps) {
@@ -34,14 +34,14 @@ export default function AccessCodeModal({ visible, onAccessGranted }: AccessCode
             });
 
             if (!response.ok) {
-                // Try to parse error text safely
+                //try to parse error text safely
                 const errorText = await response.text();
                 let errorMessage = "Invalid Code";
                 try {
                     const errorJson = JSON.parse(errorText);
                     if (errorJson.detail) errorMessage = errorJson.detail;
                 } catch (e) {
-                    // If response wasn't JSON, use the raw text or status
+                    //if response wasn't json, use the raw text or status
                     if (errorText) errorMessage = errorText;
                 }
                 throw new Error(errorMessage);
@@ -54,7 +54,7 @@ export default function AccessCodeModal({ visible, onAccessGranted }: AccessCode
             console.error("Fetch error:", error);
             let msg = error.message;
 
-            // User friendly error messages
+            //user friendly error messages
             if (msg.includes("Network request failed")) {
                 msg = "Could not connect to server. Check your computer IP and Firewall.";
             }

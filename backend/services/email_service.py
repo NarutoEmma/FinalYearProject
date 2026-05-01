@@ -28,24 +28,13 @@ def send_report_email(
         session_id: int,
         recipient_email: Optional[str] = None
 ) -> dict:
-    """
-    Sends the generated PDF report to the doctor via email.
 
-    Args:
-        pdf_path: Path to the PDF file
-        patient_name: Patient's name
-        session_id: Session identifier
-        recipient_email: Optional override for doctor's email
-
-    Returns:
-        dict: {"success": bool, "message": str}
-    """
-    # Use provided email or default doctor email
+    #use provided email or default doctor email
     recipient = recipient_email or DOCTOR_EMAIL
 
-    # Validation
+    #validation
     if not os.path.exists(pdf_path):
-        error_msg = f"❌ Error: PDF not found at {pdf_path}"
+        error_msg = f"❌ error: pdf not found at {pdf_path}"
         print(error_msg)
         return {"success": False, "message": error_msg}
 
@@ -55,13 +44,13 @@ def send_report_email(
         return {"success": False, "message": error_msg}
 
     try:
-        # 1 Setup the Email
+        # 1 setup the email
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
         msg['To'] = recipient
         msg['Subject'] = f"Patient Pre-Consultation Report - {patient_name} (Session #{session_id})"
 
-        # Email body with better formatting
+        #email body
         body = f"""
 Hello Doctor,
 
@@ -75,12 +64,12 @@ This report was generated automatically by the AI-Powered Patient Pre-Consultati
 
 Please review the symptoms before the patient's consultation.
 
----
+
 This is an automated message. Please do not reply to this email.
         """
         msg.attach(MIMEText(body, 'plain'))
 
-        # 2 Attach the PDF
+        # 2 attach the pdf
         with open(pdf_path, "rb") as f:
             pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
             pdf_attachment.add_header(
@@ -90,15 +79,15 @@ This is an automated message. Please do not reply to this email.
             )
             msg.attach(pdf_attachment)
 
-        # 3 Connect to Gmail Server and Send
-        print(f"📧 Connecting to Gmail server...")
+        #3 connect to gmail server and send
+        print(f"📧 Connecting to gmail server...")
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
 
-        print(f"🔐 Logging in as {SENDER_EMAIL}...")
+        print(f"🔐 logging in as {SENDER_EMAIL}...")
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
 
-        print(f"📤 Sending email to {recipient}...")
+        print(f"📤 sending email to {recipient}...")
         server.send_message(msg)
         server.quit()
 
@@ -107,7 +96,7 @@ This is an automated message. Please do not reply to this email.
         return {"success": True, "message": success_msg}
 
     except smtplib.SMTPAuthenticationError:
-        error_msg = "❌ Authentication failed. Check your email and app password."
+        error_msg = "❌ authentication failed. Check your email and app password."
         print(error_msg)
         return {"success": False, "message": error_msg}
 
@@ -123,9 +112,9 @@ This is an automated message. Please do not reply to this email.
 
 
 def test_email_configuration():
-    """
-    Test if email configuration is working
-    """
+
+    #test if email configuration is working
+
     print("🧪 Testing email configuration...")
     print(f"Sender: {SENDER_EMAIL}")
     print(f"Recipient: {DOCTOR_EMAIL}")
@@ -140,5 +129,5 @@ def test_email_configuration():
 
 
 if __name__ == "__main__":
-    # Test configuration when run directly
+    #test configuration when run directly
     test_email_configuration()

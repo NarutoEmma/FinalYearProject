@@ -43,7 +43,7 @@ export default function BeginFocus() {
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-    // Recording states using expo-av
+    //recording states using expo-av
     const [recording, setRecording] = useState<Recording | null>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [hasAudioPermission, setHasAudioPermission] = useState(false);
@@ -66,7 +66,7 @@ export default function BeginFocus() {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }, [messages]);
 
-    // Request microphone permission
+    //request microphone permission
     const requestAudioPermission = async () => {
         try {
             const { status } = await Audio.requestPermissionsAsync();
@@ -88,21 +88,21 @@ export default function BeginFocus() {
         }
     };
 
-    // Initialize on mount
+    //initialize on mount
     useEffect(() => {
         requestAudioPermission();
     }, []);
 
-    // Start recording
+    //start recording
     const startRecording = async () => {
         try {
-            // Check permission
+            //check permission
             if (!hasAudioPermission) {
                 const granted = await requestAudioPermission();
                 if (!granted) return;
             }
 
-            // Stop any text-to-speech
+            //stop any text-to-speech
             if (speaking) {
                 Speech.stop();
                 setSpeaking(false);
@@ -110,13 +110,13 @@ export default function BeginFocus() {
 
             console.log('🎤 Starting recording...');
 
-            // Set audio mode
+            //set audio mode
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: true,
                 playsInSilentModeIOS: true,
             });
 
-            // Start recording
+            //start recording
             const { recording: newRecording } = await Audio.Recording.createAsync(
                 Audio.RecordingOptionsPresets.HIGH_QUALITY
             );
@@ -135,7 +135,7 @@ export default function BeginFocus() {
         }
     };
 
-    // Stop recording and transcribe
+    //stop recording and transcribe
     const stopRecording = async () => {
         if (!recording) return;
 
@@ -149,7 +149,7 @@ export default function BeginFocus() {
 
             console.log('📁 Recording saved to:', uri);
 
-            // Transcribe the audio
+            //transcribe the audio
             if (uri) {
                 await transcribeAudio(uri);
             }
@@ -159,14 +159,14 @@ export default function BeginFocus() {
         }
     };
 
-    // Send audio to backend for transcription
+    //send audio to backend for transcription
     const transcribeAudio = async (audioUri: string) => {
         setTranscribing(true);
 
         try {
             console.log('🔄 Transcribing audio...');
 
-            // Create form data
+            //create form data
             const formData = new FormData();
             formData.append('file', {
                 uri: audioUri,
@@ -174,7 +174,7 @@ export default function BeginFocus() {
                 name: 'recording.m4a',
             } as any);
 
-            // Send to backend
+            //send to backend
             const response = await fetch(`${BASE_URL}/sessions/transcribe-audio`, {
                 method: 'POST',
                 body: formData,
@@ -187,7 +187,7 @@ export default function BeginFocus() {
             console.log('📝 Transcription result:', result);
 
             if (result.success && result.text) {
-                // Set transcribed text to input field
+                //set transcribed text to input field
                 setText(result.text);
                 console.log('✅ Transcribed:', result.text);
             } else {
@@ -208,7 +208,7 @@ export default function BeginFocus() {
         }
     };
 
-    // Toggle recording
+    //toggle recording
     const toggleRecording = async () => {
         if (isRecording) {
             await stopRecording();
@@ -217,7 +217,7 @@ export default function BeginFocus() {
         }
     };
 
-    // Load chat history from backend
+    //load chat history from backend
     const loadChatHistory = async (sessionId: number) => {
         console.log("📜 Loading chat history for session:", sessionId);
         setLoadingHistory(true);
@@ -255,7 +255,7 @@ export default function BeginFocus() {
 
                 console.log("✅ Chat history loaded successfully");
             } else {
-                console.log("ℹ️ No previous messages found - starting fresh");
+                console.log("ℹ️ No previous messages found, starting fresh");
             }
 
         } catch (error: any) {
@@ -496,7 +496,7 @@ export default function BeginFocus() {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 keyboardVerticalOffset={keyboardOffset}
             >
-                {/* Loading History Indicator */}
+                {/*loading history indicator */}
                 {loadingHistory && (
                     <View style={styles.loadingBanner}>
                         <Ionicons name="time-outline" size={20} color="#007AFF" />
@@ -504,7 +504,6 @@ export default function BeginFocus() {
                     </View>
                 )}
 
-                {/* Action Bar - Hide if session ended */}
                 {sessionId && !sessionEnded && (
                     <View style={styles.topActionsContainer}>
                         <View style={{flex:1}}/>
@@ -532,7 +531,7 @@ export default function BeginFocus() {
                     </View>
                 )}
 
-                {/* Session Ended Banner + Download Section */}
+                {/*session ended banner + download section*/}
                 {sessionEnded && (
                     <>
                         <View style={styles.sessionEndedBanner}>
@@ -575,7 +574,7 @@ export default function BeginFocus() {
                     </>
                 )}
 
-                {/* Tracker Component */}
+                {/*symptom tracker*/}
                 {renderSymptomTracker()}
 
                 <FlatList
@@ -586,10 +585,10 @@ export default function BeginFocus() {
                     contentContainerStyle={{ paddingTop: 10, paddingHorizontal: 12, paddingBottom: 20 }}
                 />
 
-                {/* Bottom Bar with Recording */}
+                {/*bottom bar with recording  */}
                 {!sessionEnded && (
                     <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: Math.max(10, insets.bottom) }]}>
-                        {/* Recording indicator */}
+                        {/*recording indicator */}
                         {isRecording && (
                             <View style={styles.recordingIndicator}>
                                 <View style={styles.recordingDot} />
@@ -597,7 +596,7 @@ export default function BeginFocus() {
                             </View>
                         )}
 
-                        {/* Transcribing indicator */}
+                        {/*transcribing indicator */}
                         {transcribing && (
                             <View style={styles.transcribingIndicator}>
                                 <ActivityIndicator size="small" color="#007AFF" />
@@ -606,7 +605,7 @@ export default function BeginFocus() {
                         )}
 
                         <View style={[styles.inputPill, { borderColor: colors.border, backgroundColor: 'white' }]}>
-                            {/* Microphone button */}
+                            {/*microphone button */}
                             <TouchableOpacity
                                 style={styles.micButton}
                                 onPress={toggleRecording}
@@ -648,7 +647,7 @@ export default function BeginFocus() {
                     </View>
                 )}
 
-                {/* Session Ended Footer */}
+                {/*session ended footer */}
                 {sessionEnded && (
                     <View style={styles.sessionEndedFooter}>
                         <Ionicons name="lock-closed" size={18} color="#666" />

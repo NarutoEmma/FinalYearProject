@@ -1,13 +1,13 @@
-# backend/services/session_manager.py
+#backend/services/session_manager.py
 import sys
 from pathlib import Path
 
-#add project root to Python path
+#add project root to python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
-load_dotenv()  # load DB credentials
+load_dotenv()  #load db credentials
 
 from backend.app.database import SessionLocal
 from backend.app.model import Session, Appointment
@@ -37,9 +37,9 @@ def check_session(session_id: int):
             duration = session.ended_at - session.started_at
             print(f"   Duration: {duration}")
         else:
-            print(f"\n⚠️ SESSION IS STILL ACTIVE (not ended)")
+            print(f"\n⚠️ SESSION IS STILL ACTIVE")
 
-        # Check appointment status
+        #check appointment status
         if session.appointment:
             appointment = session.appointment
             print(f"\n📅 Appointment Details:")

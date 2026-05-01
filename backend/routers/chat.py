@@ -7,12 +7,12 @@ from backend.services.ai_service import generate_ai_response
 
 router = APIRouter(tags=["Chat"])
 
-# Get chat history endpoint
+#get chat history endpoint
 @router.get("/{session_id}/history")
 def get_chat_history(session_id: int, db: Session = Depends(get_db)):
-    """
-    Get all previous chat messages for a session
-    """
+
+    #retrieve all previous chat messages for a session
+
     #validate session exists
     session = db.query(model.Session).filter(
         model.Session.id == session_id
@@ -21,17 +21,17 @@ def get_chat_history(session_id: int, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Get all messages for this session
+    #get all messages for this session
     messages = db.query(model.Message).filter(
         model.Message.session_id == session_id
     ).order_by(model.Message.created_at.asc()).all()
 
-    # Format for frontend
+    #format for frontend
     chat_history = []
     for msg in messages:
         chat_history.append({
             "id": str(msg.id),
-            "role": msg.sender,  # "user" or "ai"
+            "role": msg.sender,  #user or ai
             "text": msg.content,
             "timestamp": msg.created_at.isoformat()
         })
@@ -51,7 +51,7 @@ def chat_with_ai(
         payload: schemas.MessageCreate,
         db: Session = Depends(get_db)
 ):
-    # Validate session
+    #validate session
     session = db.query(model.Session).filter(
         model.Session.id == session_id
     ).first()
@@ -64,7 +64,7 @@ def chat_with_ai(
     ).first()
     current_state = existing_summary_row.summary_content if existing_summary_row else None
 
-    # Save user message
+    #save user message
     user_message = model.Message(
         session_id=session_id,
         sender="user",
@@ -77,7 +77,7 @@ def chat_with_ai(
         model.Message.session_id == session_id
     ).order_by(model.Message.created_at).all()
 
-    # Build chat history from db
+    #build chat history from db
     chat_history = [
         {
             "role": "assistant" if m.sender == "ai" else "user",
@@ -90,7 +90,7 @@ def chat_with_ai(
     ai_response = generate_ai_response(chat_history, current_state)
     reply_content = ai_response.get("reply", "i'm listening")
 
-    #save AI reply
+    #save ai reply
     ai_message = model.Message(
         session_id=session_id,
         sender="ai",
@@ -98,7 +98,7 @@ def chat_with_ai(
     )
     db.add(ai_message)
 
-    # Update summary table if AI extracted symptoms
+    #update summary table if ai extracted any symptom
     if ai_response.get("extracted") and ai_response["extracted"].get("symptoms"):
         if existing_summary_row:
             existing_summary_row.summary_content = ai_response["extracted"]

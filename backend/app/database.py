@@ -8,13 +8,13 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_NAME = "preconsultationdb"
 
-# Protected url to prevent bot getting access to my db
+#protected url to prevent bot getting access to my db
 DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:3306/{DB_NAME}"
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,   #prevents MySQL timeout issues
-    pool_recycle=3600     # Recycles connections every hour
+    pool_pre_ping=True,   #prevents mysql timeout issues
+    pool_recycle=3600     #recycles connections every hour
 )
 
 SessionLocal = sessionmaker(
@@ -26,7 +26,7 @@ SessionLocal = sessionmaker(
 Base = declarative_base()
 
 
-# Dependency for FastAPI routes
+#dependency for FastAPI routes
 def get_db():
     db = SessionLocal()
     try:
