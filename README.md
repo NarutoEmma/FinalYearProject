@@ -88,10 +88,9 @@ Set up the MySQL database:
 mysql -u root -p < database/preconsultationdb.sql
 ```
 
-Start the FastAPI server:
+Start the FastAPI server from the parent project directory:
 
 ```bash
-cd backend
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload    
 ```
 
