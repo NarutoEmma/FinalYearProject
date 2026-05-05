@@ -72,10 +72,14 @@ Create a `.env` file in the `backend/` directory:
 
 ```env
 GROQ_API_KEY=your_groq_api_key_here
-DB_HOST=localhost
 DB_USER=your_mysql_username
 DB_PASSWORD=your_mysql_password
-DB_NAME=preconsultationdb
+DB_HOST=localhost
+SECRET_KEY=your_secret_key
+
+SENDER_EMAIL=your_actual_email@gmail.com
+SENDER_APP_PASSWORD=your_16_char_app_password
+DOCTOR_EMAIL=your_target_email@gmail.com
 ```
 
 Set up the MySQL database:
