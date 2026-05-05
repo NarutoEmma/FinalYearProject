@@ -164,7 +164,7 @@ def finalize_session(session_id: int, db: Session = Depends(get_db)):
         session.appointment.status = "completed"
         print(f"✅ Appointment status updated to: {session.appointment.status}")
 
-    #9 commit all changes to the database
+    #9 commit all changes to the database schema
     db.commit()
 
     print(f"✅ Session {session_id} finalized successfully")

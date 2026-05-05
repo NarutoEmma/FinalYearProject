@@ -23,7 +23,7 @@ def check_session(session_id: int):
         session = db.query(Session).filter(Session.id == session_id).first()
 
         if not session:
-            print(f"❌ Session {session_id} not found in database!")
+            print(f"❌ Session {session_id} not found in database schema!")
             return
 
         print(f"\n📋 Session Details:")
