@@ -9,6 +9,12 @@ python-dotenv
 sqlalchemy
 pydantic[email]
 passlib
-jose
+python-jose[cryptography]
 bcrypt
 python-multipart
+SpeechRecognition
+pydub
+reportlab
+groq
+ffmpeg
+argon2-cffi

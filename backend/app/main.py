@@ -2,7 +2,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 load_dotenv()
-print("groq", os.getenv("GROQ_API_KEY"))
 from fastapi import FastAPI
 from backend.app.database import Base,engine
 from backend.routers import auth, sessions, appointments,chat

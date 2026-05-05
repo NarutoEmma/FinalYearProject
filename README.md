@@ -75,19 +75,20 @@ GROQ_API_KEY=your_groq_api_key_here
 DB_HOST=localhost
 DB_USER=your_mysql_username
 DB_PASSWORD=your_mysql_password
-DB_NAME=preconsultation_db
+DB_NAME=preconsultationdb
 ```
 
 Set up the MySQL database:
 
 ```bash
-mysql -u root -p < schema.sql
+mysql -u root -p < database/preconsultationdb.sql
 ```
 
 Start the FastAPI server:
 
 ```bash
-uvicorn main:app --reload
+cd backend
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload    
 ```
 
 ---
@@ -95,7 +96,7 @@ uvicorn main:app --reload
 ### 3. Frontend setup
 
 ```bash
-cd frontend
+cd PreConsultation
 npm install
 npx expo start
 ```
@@ -109,15 +110,36 @@ Scan the QR code with the Expo Go app on your phone, or run on an emulator.
 ```
 FinalYearProject/
 ├── backend/
-│   ├── main.py          # FastAPI entry point
-│   ├── routes/          # API route handlers
-│   ├── models/          # Database models
-│   ├── ai/              # Groq/LLaMA prompting logic
-│   └── schema.sql       # MySQL database schema
-├── frontend/
-│   ├── app/             # React Native screens
-│   ├── components/      # Reusable UI components
-│   └── services/        # API communication layer
+│   ├── app/            #FastAPI models, schemas, and database config
+│   │   ├── main.py
+│   │   ├── database.py
+│   │   ├── model.py
+│   │   └── schemas.py
+│   ├── prompts/        #ai prompts for follow-up questions   
+│   │   ├── conversation.py
+│   │   └── extractor.py
+│   ├── routers/        #api route handlers
+│   │   ├── auth.py
+│   │   ├── chat.py
+│   │   ├── sessions.py
+│   │   └── summaries.py
+│   ├── services/       #ai service, code generation, emailing, pdf generation and session manager
+│   │   ├── ai_service.py
+│   │   ├── email_service.py
+│   │   └── pdf_generator.py
+│   │   └── session_manager.py
+│   └── requirements.txt
+├── PreConsultation/     #react native frontend
+│   ├── app/            #router screens
+│   │   ├── index.tsx
+│   │   ├── access_code.tsx
+│   │   └── _layout.tsx
+│   ├── assets/         # Images
+│   └── utils/          #utility functions and themes
+│       └── theme.tsx
+├── database/
+│   └── preconsultationdb.sql #database schema
+├── reports/            #generated patient symptom reports
 └── README.md
 ```
 
@@ -126,9 +148,9 @@ FinalYearProject/
 ## 🔮 Future Work
 
 - [ ] Clinician-facing dashboard to review patient summaries
-- [ ] Cloud deployment (backend on Render or Railway)
+- [ ] Cloud deployment 
 - [ ] Enhanced speech recognition accuracy
-- [ ] GP system integration via HL7/FHIR standards
+- [ ] Light/Dark themes
 
 ---
 
@@ -137,7 +159,7 @@ FinalYearProject/
 **Igwegbe Emmanuel**
 - GitHub: [@NarutoEmma](https://github.com/NarutoEmma)
 - LinkedIn: [emmanuel-igwegbe](https://www.linkedin.com/in/emmanuel-igwegbe-22b837347/)
-- Email: captainemm45@gmail.com
+- Email: captainemm699@gmail.com
 
 ---
 

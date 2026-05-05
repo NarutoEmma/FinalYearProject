@@ -14,9 +14,9 @@ from backend.app.database import SessionLocal
 from backend.app.model import Session
 
 def cleanup_sessions_range(start_id: int, end_id: int):
-    """
-    End all sessions in a specific ID range
-    """
+
+    #end all sessions in a specific ID range
+
     db = SessionLocal()
 
     print("=" * 70)
