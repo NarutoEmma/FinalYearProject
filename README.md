@@ -8,7 +8,7 @@ Built with a React Native frontend, FastAPI backend, MySQL database, and Groq (L
 
 ## 💡 Motivation
 
-Standard GP intake forms are rigid and impersonal. Patients — especially those who are anxious or unfamiliar with medical language  often struggle to describe what's wrong in a fixed format. This system replaces that experience with a natural, conversational AI that follows the patient's own language, asking adaptive follow-up questions based on what they actually say, not a predetermined script.
+Standard GP intake forms are rigid and impersonal. Patients, especially those who are anxious or unfamiliar with medical language  often struggle to describe what's wrong in a fixed format. This system replaces that experience with a natural, conversational AI that follows the patient's own language, asking adaptive follow-up questions based on what they actually say, not a predetermined script.
 
 This insight came directly from real-world care experience working with vulnerable adults who avoided seeking medical help because the process felt inaccessible.
 
@@ -18,10 +18,10 @@ This insight came directly from real-world care experience working with vulnerab
 
 - 🤖 **Adaptive AI prompting** — follow-up questions are generated dynamically based on patient responses, not a fixed flow
 - 🎙️ **Text and speech input** — patients can speak or type their symptoms
-- 📋 **Clinician-ready summaries** — structured output aligned with NHS-style symptom reporting (frequency, severity, duration)
+- 📋 **Clinician-ready summaries** — clear and structured symptom reporting (frequency, severity, duration)
 - 🔐 **Secure session flow** — code-based session linking between patient and doctor
 - 🗄️ **MySQL data storage** — all session data persisted securely
-- 📱 **Cross-platform mobile UI** — built with React Native (Expo), runs on iOS and Android
+- 📱 **Cross-platform mobile UI** — built with React Native (expo), runs on ios and android
 
 > ⚠️ **Note:** The clinician-facing dashboard UI is currently set aside for future development. The patient-facing side is fully functional.
 
